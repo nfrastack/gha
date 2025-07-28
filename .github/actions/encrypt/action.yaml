@@ -1,0 +1,116 @@
+name: encrypt
+
+on:
+  workflow_call
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout Repository
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout Age
+        id: checkout_age
+        uses: actions/checkout@v4
+        with:
+          repository: tiredofit/license
+          sparse-checkout: |
+            public
+            unlock
+          sparse-checkout-cone-mode: false
+          path: age
+          token: ${{ secrets.LICENSE_PAT }}
+
+      - name: Install Dependencies
+        id: install
+        shell: bash
+        run: |
+          sudo apt-get update > /dev/null 2>&1
+          sudo apt install age > /dev/null 2>&1
+
+      #- name: secrets
+      #  id: secrets
+      #  shell: bash
+      #  run: |
+      #    set -x
+      #    SECRET_VALUE=$(curl -s -H "Authorization: token ${{ secrets.LICENSE_PAT }}" \
+      #      "https://api.github.com/repos/tiredofit/license/actions/secrets/FOO" \
+      #      | jq -r '.')
+      #    echo "The secret value is: $SECRET_VALUE"
+
+      #- name: Decrypt
+      #  id: decrypt_existing
+      #  shell: bash
+      #  run: |
+      #    Containerfile="${1:-Containerfile}"
+      #    IMAGE_PATTERN=$(grep -E 'FROM .*' "$Containerfile" | grep -v -E 'FROM .* as' | awk '{print $2}')
+      #    IMAGE_PATTERN=$(echo "$IMAGE_PATTERN" | head -n1)
+      #    IMAGE_VARIABLES=$(echo "$IMAGE_PATTERN" | grep -oP '\$\{([^}]+)\}' | sed 's/\${\([^}]*\)}/\1/' | sort -u)
+      #    for IMAGEVAR in $IMAGE_VARIABLES; do
+      #        if [[ -z "${!IMAGEVAR}" ]]; then
+      #            # Try to read from Containerfile ARG
+      #            IMAGEVARVALUE=$(grep -m1 -i "ARG ${IMAGEVAR}=" "$Containerfile" | cut -d= -f2- | tr -d '"' | tr -d "'")
+      #            if [[ -z "$IMAGEVARVALUE" ]]; then
+      #                # Try to read from Containerfile ENV
+      #                IMAGEVARVALUE=$(grep -m1 -i "ENV ${IMAGEVAR}=" "$Containerfile" | cut -d= -f2- | tr -d '"' | tr -d "'")
+      #            fi
+      #            if [[ -n "$IMAGEVARVALUE" ]]; then
+      #                export "$IMAGEVAR"="$IMAGEVARVALUE
+      #            fi
+      #        fi
+      #    done
+      #
+      #    eval "EXPANDED_IMAGE=\"$IMAGE_PATTERN\""
+      #    CONTAINER_ID=$(docker create --entrypoint /bin/sleep ${EXPANDED_IMAGE} 120)
+      #    docker start $CONTAINER_ID
+      #    docker exec -i  ${CONTAINER_ID} sh -c "find /container -type f -name '*' -print0 | tar -cf /encrypted.tar -T - ; sleep 1"
+      #    docker cp $CONTAINER_ID:/encrypted.tar ./encrypted.tar
+      #    sudo tar xpf ./encrypted.tar -C ./rootfs --same-owner
+      #    docker rm -f $CONTAINER_ID
+      #    rm -rf ./encrypted.tar
+      #
+      #    ## Decrypt the files with master key
+      #    for file in $(find ./rootfs -type f -name "*.age"); do
+      #        age --decrypt -i "$privatekey" "$file" > "${file%.age}"
+      #        chown --reference "${file}" "${file%.age}"
+      #        chmod --reference "${file}" "${file%.age}"
+      #        touch --reference "${file}" "${file%.age}"
+      #        rm "${file}"
+      #    done
+
+      - name: Encrypt
+        id: encrypt
+        shell: bash
+        run: |
+          set +x
+          pubkey=$(mktemp)
+
+          while IFS= read -r line; do
+              echo "$line" | base64 --decode | gunzip >> "$pubkey"
+              echo "" >> "$pubkey"
+          done < "age/public"
+
+          for file in $(find ./rootfs -type f -name "*.advanced"); do
+              if [ ! -f cleanup.sh ] ; then
+                  echo "#!/bin/bash" > cleanup.sh
+                  chmod +x cleanup.sh
+              fi
+
+              age -R "$pubkey" "$file" > "${file}".age
+              chown --reference "$file" "${file}".age
+              chmod --reference "$file" "${file}".age
+              touch --reference "$file" "${file}".age
+              echo "rm -rf \"${file}\"" >> cleanup.sh
+          done
+
+          rm -rf "${pubkey}"
+      - name: Upload Encrypted Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-artifacts
+          path: |
+            ./rootfs/**/*.age
+            cleanup.sh
