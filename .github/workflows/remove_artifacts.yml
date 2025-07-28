@@ -1,0 +1,27 @@
+name: remove_artifacts
+
+on:
+  workflow_call
+
+jobs:
+  cremove_artifacts:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Remove Build Artifacts
+        if: always()
+        run: |
+          ARTIFACT_NAME="encrypted-artifacts"
+          ARTIFACT_ID=$(curl -sS \
+                                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                                    -H "Accept: application/vnd.github.v3+json" \
+                                    "https://api.github.com/repos/${{ github.repository }}/actions/artifacts" \
+                                        | jq -r ".artifacts[] | select(.name == \"$ARTIFACT_NAME\") | .id")
+          if [ -n "$ARTIFACT_ID" ]; then
+            for artifact in $(echo $ARTIFACT_ID); do
+              curl -sS -X DELETE \
+                                    -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                                    -H "Accept: application/vnd.github.v3+json" \
+                                    "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$artifact"
+            done
+          fi
