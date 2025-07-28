@@ -1,0 +1,189 @@
+name: Generic Multi Option Push Build
+
+on:
+  workflow_call:
+    inputs:
+      base_image:
+        required: false
+        type: string
+      distro:
+        required: false
+        type: string
+      distro_variant:
+        required: false
+        type: string
+      include_distro_tag:
+        required: false
+        type: boolean
+        default: false
+      include_variant_tag:
+        required: false
+        type: boolean
+        default: false
+      latest:
+        required: false
+        type: string
+        default: true
+      platforms:
+        required: false
+        type: string
+        default: linux/amd64,linux/arm64
+      push_dockerhub:
+        required: false
+        type: boolean
+        default: true
+      push_ghcr:
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  image_build:
+    env:
+      build_file: Containerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Download Encrypted Files
+        uses: actions/download-artifact@v4
+        with:
+          name: encrypted-artifacts
+          path: ./
+        continue-on-error: true
+      - name: Do we need to clean the repository
+        id: clean
+        shell: bash
+        run: |
+          if [ -f "cleanup.sh" ] ; then
+            chmod +x cleanup.sh
+            ./cleanup.sh
+          fi
+
+      - name: Prepare
+        id: prep
+        env:
+          INPUT_BASE_IMAGE: ${{ inputs.base_image }}
+          INPUT_DISTRO: ${{ inputs.distro }}
+          INPUT_DISTRO_VARIANT: ${{ inputs.distro_variant }}
+          INPUT_INCLUDE_DISTRO_TAG: ${{ inputs.include_distro_tag }}
+          INPUT_INCLUDE_VARIANT_TAG: ${{ inputs.include_variant_tag }}
+          INPUT_LATEST: ${{ inputs.latest }}
+          INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
+          INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
+        run: |
+          LATEST="${INPUT_LATEST:-true}"
+
+          build_identity="${INPUT_DISTRO}${INPUT_DISTRO_VARIANT:+_${INPUT_DISTRO_VARIANT}}"
+
+          tag_list=()
+
+          if [[ "${INPUT_LATEST,,}" == "true" ]]; then
+            tag_list+=("latest")
+          fi
+
+          if [ "$INPUT_INCLUDE_DISTRO_TAG" = "true" ] && [ -n "$INPUT_DISTRO" ]; then
+            tag_list+=("$INPUT_DISTRO")
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            base_tag="$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
+            if [[ "${INPUT_LATEST,,}" == "true" ]]; then
+              tag_list+=("${base_tag}")
+              tag_list+=("latest")
+            fi
+            if [ "$INPUT_INCLUDE_DISTRO_TAG" = "true" ] && [ -n "$INPUT_DISTRO" ]; then
+              tag_list+=("${base_tag}-${INPUT_DISTRO}")
+            fi
+            if [ "$INPUT_INCLUDE_VARIANT_TAG" = "true" ] && [ -n "$INPUT_DISTRO" ] && [ -n "$INPUT_DISTRO_VARIANT" ]; then
+              tag_list+=("${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+            fi
+          fi
+
+          if [ "$INPUT_INCLUDE_VARIANT_TAG" = "true" ] && [ -n "$INPUT_DISTRO" ] && [ -n "$INPUT_DISTRO_VARIANT" ]; then
+            tag_list+=("${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+          fi
+
+          all_tags=""
+          for t in "${tag_list[@]}"; do
+            all_tags+="${GITHUB_REPOSITORY}:$t,"
+          done
+          all_tags="${all_tags%,}"
+
+          echo "dockerhub_repo=${GITHUB_REPOSITORY/container-/}" >> $GITHUB_ENV
+          dockerhub_images=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
+          ghcr_images=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
+
+          dockerhub_tags=""
+          ghcr_tags=""
+
+          if [ "${INPUT_PUSH_DOCKERHUB,,}" = "true" ] ; then
+            dockerhub_tags="$dockerhub_images"
+          fi
+          if [ "${INPUT_PUSH_GHCR,,}" = "true" ] ; then
+            ghcr_tags="$ghcr_images"
+          fi
+
+          final_tags="$dockerhub_tags,$ghcr_tags"
+          final_tags=$(echo "$final_tags" | sed 's/^,*//;s/,,*/,/g;s/,$//')
+
+          echo "container_images=$final_tags" >> $GITHUB_OUTPUT
+      - name: Label
+        id: Label
+        run: |
+          image_name=${GITHUB_REPOSITORY/docker-/}
+          if [ -f "${{ env.build_file }}" ] ; then
+              sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" ${{ env.build_file }}
+              sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_commit=\"${GITHUB_SHA}\"" ${{ env.build_file }}
+              sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_committed_by=\"${GITHUB_ACTOR}\"" ${{ env.build_file }}
+              sed -i "/FROM .*/a LABEL nfrastack.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" ${{ env.build_file }}
+              sed -i "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}"  ${{ env.build_file }}
+
+              if [[ $GITHUB_REF == refs/tags/* ]]; then
+                sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" ${{ env.build_file }}
+              fi
+
+              if [[ $GITHUB_REF == refs/heads/* ]]; then
+                sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_branch=\"${GITHUB_REF#refs/heads/}\"" ${{ env.build_file }}
+              fi
+          fi
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ inputs.platforms }}
+
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./${{ env.build_file }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.prep.outputs.container_images }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          build-args: |
+            ${{ inputs.base_image && format('BASE_IMAGE={0}', inputs.base_image) || '' }}
+            ${{ inputs.distro && format('DISTRO={0}', inputs.distro) || '' }}
+            ${{ inputs.distro_variant && format('DISTRO_VARIANT={0}', inputs.distro_variant) || '' }}
