@@ -1,25 +1,16 @@
-name: Build Image
+name: Build Image (Manual)
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       platforms:
         description: 'Target platforms (comma-separated, e.g. linux/amd64,linux/arm64)'
         required: false
-        type: string
         default: 'linux/amd64,linux/arm64'
       version:
         description: 'Image version tag (optional)'
         required: false
-        type: string
         default: ''
-    secrets:
-      docker_username:
-        required: true
-      docker_password:
-        required: true
-      github_token:
-        required: true
 
 jobs:
   build:
@@ -29,8 +20,8 @@ jobs:
       - name: Build and Push Docker Image
         uses: ./.github/actions/build_simple_image
         with:
-          docker_username: ${{ secrets.docker_username }}
-          docker_password: ${{ secrets.docker_password }}
-          github_token: ${{ secrets.github_token }}
-          platforms: ${{ inputs.platforms }}
-          version: ${{ inputs.version }}
+          docker_username: ${{ secrets.DOCKER_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          platforms: ${{ github.event.inputs.platforms }}
+          version: ${{ github.event.inputs.version }}
