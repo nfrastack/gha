@@ -32,6 +32,11 @@ runs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ inputs.github_token }}
+    - name: Test GHCR login and pull base image
+      shell: bash
+      run: |
+        echo ${{ inputs.github_token }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        docker pull ghcr.io/nfrastack/container-base:alpine_3.22 || true
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
     - name: Build and Push Docker Image
