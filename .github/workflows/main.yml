@@ -27,8 +27,8 @@ jobs:
       - name: Build and Push Docker Image
         uses: ./.github/actions/build_simple_image
         with:
-          docker_username: ${{ secrets.docker_username }}
-          docker_password: ${{ secrets.docker_password }}
+          docker_username: ${{ secrets.DOCKER_USERNAME }}
+          docker_password: ${{ secrets.DOCKER_PASSWORD }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           platforms: ${{ inputs.platforms }}
           version: ${{ inputs.version }}
