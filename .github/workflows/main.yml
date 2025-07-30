@@ -18,8 +18,6 @@ on:
         required: true
       docker_password:
         required: true
-      github_token:
-        required: true
 
 jobs:
   build:
@@ -31,6 +29,6 @@ jobs:
         with:
           docker_username: ${{ secrets.docker_username }}
           docker_password: ${{ secrets.docker_password }}
-          github_token: ${{ secrets.github_token }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           platforms: ${{ inputs.platforms }}
           version: ${{ inputs.version }}
