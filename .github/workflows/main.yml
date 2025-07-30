@@ -24,6 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: nfrastack/gha
+          ref: main
       - name: Build and Push Docker Image
         uses: ./.github/actions/build_simple_image
         with:
