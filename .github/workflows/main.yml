@@ -20,7 +20,12 @@ on:
         required: true
 
 jobs:
+  encrypt:
+    uses: nfrastack/gha/.github/workflows/encrypt.yml@main
+    secrets: inherit
+
   build:
+    needs: encrypt
     runs-on: ubuntu-latest
     steps:
       - name: Checkout target repo
@@ -42,3 +47,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           platforms: ${{ inputs.platforms }}
           version: ${{ inputs.version }}
+
+  cleanup:
+    needs: build
+    uses: nfrastack/gha/.github/workflows/remove_artifacts.yml@main
+    secrets: inherit
