@@ -23,12 +23,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.ref }}
+      - name: Checkout gha actions repo
+        uses: actions/checkout@v4
         with:
           repository: nfrastack/gha
           ref: main
+          path: gha
       - name: Build and Push Docker Image
-        uses: ./.github/actions/build_simple_image
+        uses: ./gha/.github/actions/build_simple_image
         with:
           docker_username: ${{ secrets.DOCKER_USERNAME }}
           docker_password: ${{ secrets.DOCKER_PASSWORD }}
