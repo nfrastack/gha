@@ -27,13 +27,10 @@ runs:
         username: ${{ inputs.docker_username }}
         password: ${{ inputs.docker_password }}
     - name: Debug: List GHCR container-base tags
-      run: >
-        echo "Listing tags for ghcr.io/nfrastack/container-base:" &&
-        curl -H "Authorization: Bearer ${{ inputs.github_token }}" https://ghcr.io/v2/nfrastack/container-base/tags/list || true
+      run: echo "Listing tags for ghcr.io/nfrastack/container-base:" ; curl -H "Authorization: Bearer ${{ inputs.github_token }}" https://ghcr.io/v2/nfrastack/container-base/tags/list || true
       shell: bash
     - name: Debug: Show Containerfile FROM line
-      run: >
-        grep -i '^FROM' ./Containerfile || true
+      run: grep -i '^FROM' ./Containerfile || true
       shell: bash
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
