@@ -58,4 +58,4 @@ runs:
         push: true
         tags: ${{ github.repository }}:${{ steps.tag.outputs.tag }}
       env:
-        DOCKER_CONFIG: /github/home/.docker
+        DOCKER_CONFIG: /tmp/.docker
