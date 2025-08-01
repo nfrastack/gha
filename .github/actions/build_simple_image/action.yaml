@@ -54,6 +54,7 @@ runs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
       with:
+        builder: ${{ steps.buildx.outputs.name }}
         context: .
         file: ./Containerfile
         platforms: ${{ inputs.platforms }}
