@@ -7,31 +7,25 @@ on:
         description: 'Target platforms (comma-separated, e.g. linux/amd64,linux/arm64)'
         required: false
         type: string
-        default: 'linux/amd64,linux/arm64'
-      version:
-        description: 'Image version tag (optional)'
-        required: false
-        type: string
-        default: ''
+        default: linux/amd64,linux/arm64
     secrets:
-      docker_username:
+      DOCKER_USERNAME:
         required: true
-      docker_password:
+      DOCKER_PASSWORD:
+        required: true
+      GITHUB_TOKEN:
         required: true
 
 jobs:
-  encrypt:
+  prepare:
     uses: nfrastack/gha/.github/workflows/encrypt.yml@main
     secrets: inherit
-
   build:
-    needs: encrypt
-    uses: nfrastack/gha/.github/workflows/build.yml@main
+    needs: prepare
+    uses: nfrastack/gha/.github/workflows/default_amd64_arm64.yml@main
     with:
       platforms: ${{ inputs.platforms }}
-      version: ${{ inputs.version }}
     secrets: inherit
-
   cleanup:
     needs: build
     uses: nfrastack/gha/.github/workflows/remove_artifacts.yml@main

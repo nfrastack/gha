@@ -1,7 +1,13 @@
 name: Default Build
 
 on:
-  workflow_call
+  workflow_call:
+    inputs:
+      platforms:
+        description: 'Target platforms (comma-separated, e.g. linux/amd64,linux/arm64)'
+        required: false
+        type: string
+        default: linux/amd64,linux/arm64
 
 jobs:
   image_build:
@@ -88,7 +94,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
-          platforms: arm,arm64
+          platforms: ${{ inputs.platforms }}
 
       - name: Login to DockerHub
         if: github.event_name != 'pull_request'
@@ -112,7 +118,7 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ./${{ env.build_file }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ inputs.platforms }}
           push: true
           tags: ${{ steps.prep.outputs.container_images }}
 
