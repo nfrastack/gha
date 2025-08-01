@@ -1,0 +1,126 @@
+# Default Multi-Arch Build Workflow
+# Modernized for dynamic inputs, secrets, and multi-step orchestration
+
+name: Build and Push Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      build_file:
+        description: 'Dockerfile to use for build'
+        required: false
+        type: string
+        default: Dockerfile
+      platforms:
+        description: 'Target platforms (comma-separated, e.g. linux/amd64,linux/arm64)'
+        required: false
+        type: string
+        default: linux/amd64,linux/arm64
+      version:
+        description: 'Image version tag (optional)'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+      GHCR_PAT:
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      container_images: ${{ steps.prep.outputs.container_images }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare Tags
+        id: prep
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+              branch_tag="${GITHUB_REPOSITORY}:latest"
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
+          fi
+          if [ -n "${branch_tag}" ] && [ -n "${git_tag}" ]; then
+              image_tags=${branch_tag},${git_tag}
+          else
+              image_tags="${branch_tag}${git_tag}"
+          fi
+          echo "container_images=${image_tags}" >> $GITHUB_OUTPUT
+      - name: Label Dockerfile
+        run: |
+          image_name=${GITHUB_REPOSITORY/docker-/}
+          if [ -f "${{ inputs.build_file }}" ] ; then
+              sed -i "/FROM .*/a LABEL org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" ${{ inputs.build_file }}
+              sed -i "/FROM .*/a LABEL org.opencontainers.image.revision=${GITHUB_SHA}" ${{ inputs.build_file }}
+              sed -i "/FROM .*/a LABEL org.opencontainers.image.created=$(date +'%Y-%m-%dT%H:%M:%SZ')" ${{ inputs.build_file }}
+          fi
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./${{ inputs.build_file }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.prep.outputs.container_images }}
+        env:
+          DOCKER_CONFIG: /tmp/.docker
+
+  encrypt:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+      - name: Encrypt artifacts
+        run: |
+          echo "Encrypting artifacts..."
+          # Replace with your encryption logic/script
+          # Example: gpg --symmetric --cipher-algo AES256 artifact.tar.gz
+
+  upload:
+    needs: encrypt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload encrypted artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-artifact
+          path: ./
+
+  cleanup:
+    needs: upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup artifacts
+        run: |
+          echo "Cleaning up artifacts..."
+          # Replace with your cleanup logic/script
