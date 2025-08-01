@@ -34,7 +34,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ inputs.github_token }}
+        password: ${{ secrets.LICENSE_PAT }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
