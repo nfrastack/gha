@@ -19,3 +19,8 @@ inputs:
     description: "Image version tag (optional)"
     required: false
     default: ""
+runs:
+  using: "composite"
+  steps:
+    - run: echo "This action is deprecated. Use the reusable workflows in .github/workflows/ instead."
+      shell: bash
