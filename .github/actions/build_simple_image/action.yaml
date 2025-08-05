@@ -7,9 +7,9 @@ inputs:
   docker_password:
     description: "DockerHub Password"
     required: true
-  github_token:
-    description: "GitHub Token for GitHub Container Registry"
-    required: true
+  #github_token:
+  #  description: "GitHub Token for GitHub Container Registry"
+  #  required: true
   platforms:
     description: "Target platforms (comma-separated, e.g. linux/amd64,linux/arm64)"
     required: false
