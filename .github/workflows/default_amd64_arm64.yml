@@ -60,7 +60,7 @@ jobs:
           fi
 
           echo "dockerhub_repo=${GITHUB_REPOSITORY/container-/}" >> $GITHUB_ENV
-          #dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/docker-/}|g")
+          dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/docker-/}|g")
           ghcr_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
           echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
       - name: Label
