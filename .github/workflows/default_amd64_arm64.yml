@@ -23,7 +23,7 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
               if [[ "${GITHUB_REF}" == refs/heads/*/* ]] ; then
-                  git_branch="${GITHUB_REPOSITORY/docker-/}:$(echo $GITHUB_REF | sed "s|refs/heads/||g" | sed "s|/|-|g")"
+                  git_branch="${GITHUB_REPOSITORY/container-/}:$(echo $GITHUB_REF | sed "s|refs/heads/||g" | sed "s|/|-|g")"
               else
                   git_branch=${GITHUB_REF#refs/heads/}
               fi
@@ -59,8 +59,8 @@ jobs:
               image_tags="${branch_tag}${git_tag}"
           fi
 
-          echo "dockerhub_repo=${GITHUB_REPOSITORY/docker-/}" >> $GITHUB_ENV
-          dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/docker-/}|g")
+          echo "dockerhub_repo=${GITHUB_REPOSITORY/container-/}" >> $GITHUB_ENV
+          #dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/docker-/}|g")
           ghcr_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
           echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
       - name: Label
@@ -73,11 +73,6 @@ jobs:
               sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_committed_by=\"${GITHUB_ACTOR}\"" ${{ env.build_file }}
               sed -i "/FROM .*/a LABEL nfrastack.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" ${{ env.build_file }}
               sed -i "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}"  ${{ env.build_file }}
-
-              if [ -f "CHANGELOG.md" ] ; then
-                sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" ${{ env.build_file }}
-                mkdir -p install/assets/.changelogs ; cp CHANGELOG.md install/assets/.changelogs/${GITHUB_REPOSITORY/\//_}.md
-              fi
 
               if [[ $GITHUB_REF == refs/tags/* ]]; then
                 sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" ${{ env.build_file }}
@@ -121,13 +116,3 @@ jobs:
           platforms: ${{ inputs.platforms }}
           push: true
           tags: ${{ steps.prep.outputs.container_images }}
-
-      #- name: Update Docker Hub Information
-      #  if: github.event_name != 'pull_request'
-      #  uses: peter-evans/dockerhub-description@v3
-      #  with:
-      #    username: ${{ secrets.DOCKER_USERNAME }}
-      #    password: ${{ secrets.DOCKER_PASSWORD }}
-      #    repository: ${{ env.dockerhub_repo }}
-      #    short-description: ${{ github.event.repository.description }}
-      #    readme-filepath: ./README.md
