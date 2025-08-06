@@ -38,10 +38,8 @@ runs:
       shell: bash
       run: |
         if [ -f "cleanup.sh" ] ; then
-          set -x
           chmod +x cleanup.sh
           ./cleanup.sh
-          set +x
         fi
 
     - name: Determine Branch Name and Set Variables
@@ -114,6 +112,7 @@ runs:
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro=\"${DISTRO}\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro_variant=\"${DISTRO_VARIANT}\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_variant=\"${IMAGE_VARIANT}\"" \
                     -e "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}" \
                     -e "s|\"Base\"|\"Base ${DISTRO}_${DISTRO_VARIANT}\"|" \
                   Containerfile
