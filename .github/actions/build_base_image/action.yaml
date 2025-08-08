@@ -48,7 +48,7 @@ runs:
       run: |
         if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
             if [[ "${GITHUB_REF}" == refs/heads/*/* ]] ; then
-                git_branch="${GITHUB_REPOSITORY/docker-/}:$(echo $GITHUB_REF | sed "s|refs/heads/||g" | sed "s|/|-|g")"
+                git_branch="${GITHUB_REPOSITORY/container-/}:$(echo $GITHUB_REF | sed "s|refs/heads/||g" | sed "s|/|-|g")"
             else
                 git_branch=${GITHUB_REF#refs/heads/}
             fi
@@ -82,9 +82,9 @@ runs:
 
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO}_${DISTRO_VARIANT} | sed 's|refs/tags/||g')"
+                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,} | sed 's|refs/tags/||g')"
             else
-                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO}_${DISTRO_VARIANT}_${IMAGE_VARIANT} | sed 's|refs/tags/||g')"
+                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')"
             fi
         fi
 
@@ -94,16 +94,16 @@ runs:
             image_tags="${branch_tag}${git_tag}"
         fi
 
-        echo "dockerhub_repo=${GITHUB_REPOSITORY/docker-/}" >> $GITHUB_ENV
-        dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/docker-/}|g")
+        echo "dockerhub_repo=${GITHUB_REPOSITORY/container-/}" >> $GITHUB_ENV
+        dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
         ghcr_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
-        #echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
+        echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
         echo "container_images=${ghcr_images}" >> $GITHUB_OUTPUT
     - name: Label
       id: Label
       shell: bash
       run: |
-        image_name=${GITHUB_REPOSITORY/docker-/}
+        image_name=${GITHUB_REPOSITORY/container-/}
         if [ -f "Containerfile" ] ; then
             sed -i \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" \
@@ -116,11 +116,6 @@ runs:
                     -e "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}" \
                     -e "s|\"Base\"|\"Base ${DISTRO}_${DISTRO_VARIANT}\"|" \
                   Containerfile
-
-            if [ -f "CHANGELOG.md" ] ; then
-                sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_changelog_version=\"$(head -n1 ./CHANGELOG.md | awk '{print $2}')\"" Containerfile
-                mkdir -p install/assets/.changelogs ; cp CHANGELOG.md install/assets/.changelogs/${GITHUB_REPOSITORY/\//_}.md
-            fi
 
             if [[ $GITHUB_REF == refs/tags/* ]]; then
                 sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" Containerfile
