@@ -138,7 +138,5 @@ runs:
         build-args: |
           BASE_IMAGE=${{ env.BASE_IMAGE }}
           DISTRO=${{ env.DISTRO }}
-          # If IMAGE_VARIANT is set, append it to DISTRO_VARIANT with a dash, else just use DISTRO_VARIANT
           DISTRO_VARIANT=${{ env.IMAGE_VARIANT && format('{0}-{1}', env.DISTRO_VARIANT, env.IMAGE_VARIANT) || env.DISTRO_VARIANT }}
-          # Only set IMAGE_VARIANT if it is non-empty
           ${{ env.IMAGE_VARIANT && format('IMAGE_VARIANT={0}', env.IMAGE_VARIANT) || '' }}
