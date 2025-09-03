@@ -138,5 +138,5 @@ runs:
         build-args: |
           BASE_IMAGE=${{ env.BASE_IMAGE }}
           DISTRO=${{ env.DISTRO }}
-          DISTRO_VARIANT=${{ env.IMAGE_VARIANT && format('{0}-{1}', env.DISTRO_VARIANT, env.IMAGE_VARIANT) || env.DISTRO_VARIANT }}
+          DISTRO_VARIANT=${{ env.IMAGE_VARIANT && format('{0}_{1}', env.DISTRO_VARIANT, env.IMAGE_VARIANT) || env.DISTRO_VARIANT }}
           ${{ env.IMAGE_VARIANT && format('IMAGE_VARIANT={0}', env.IMAGE_VARIANT) || '' }}
