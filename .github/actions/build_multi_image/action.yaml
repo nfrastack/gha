@@ -69,7 +69,7 @@ runs:
                     esac
 
                     if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}${image_latest}"
+                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,},${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}${image_latest}"
                     else
                         branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}${image_latest}"
                     fi
