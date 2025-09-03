@@ -113,7 +113,7 @@ runs:
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro=\"${DISTRO}\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro_variant=\"${DISTRO_VARIANT}\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_variant=\"${IMAGE_VARIANT}\"" \
-                    -e "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}" \
+                    -e "/FROM .*/a LABEL org.opencontainers.image.source=\"https://github.com/${GITHUB_REPOSITORY}\"" \
                   Containerfile
 
             if [[ $GITHUB_REF == refs/tags/* ]]; then
@@ -138,5 +138,7 @@ runs:
         build-args: |
           BASE_IMAGE=${{ env.BASE_IMAGE }}
           DISTRO=${{ env.DISTRO }}
-          DISTRO_VARIANT=${{ env.DISTRO_VARIANT }}
-          IMAGE_VARIANT=-${{ env.IMAGE_VARIANT }}
+          # If IMAGE_VARIANT is set, append it to DISTRO_VARIANT with a dash, else just use DISTRO_VARIANT
+          DISTRO_VARIANT=${{ env.IMAGE_VARIANT && format('{0}-{1}', env.DISTRO_VARIANT, env.IMAGE_VARIANT) || env.DISTRO_VARIANT }}
+          # Only set IMAGE_VARIANT if it is non-empty
+          ${{ env.IMAGE_VARIANT && format('IMAGE_VARIANT={0}', env.IMAGE_VARIANT) || '' }}
