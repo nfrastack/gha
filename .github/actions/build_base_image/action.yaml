@@ -113,7 +113,7 @@ runs:
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro=\"${DISTRO}\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro_variant=\"${DISTRO_VARIANT}\"" \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_variant=\"${IMAGE_VARIANT}\"" \
-                    -e "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}" \
+                    -e "/FROM .*/a LABEL org.opencontainers.image.source=\"https://github.com/${GITHUB_REPOSITORY}\"" \
                     -e "s|\"Base\"|\"Base ${DISTRO}_${DISTRO_VARIANT}\"|" \
                   Containerfile
 
