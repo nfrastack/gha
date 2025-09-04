@@ -137,7 +137,7 @@ jobs:
               sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_commit=\"${GITHUB_SHA}\"" ${{ env.build_file }}
               sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_committed_by=\"${GITHUB_ACTOR}\"" ${{ env.build_file }}
               sed -i "/FROM .*/a LABEL nfrastack.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" ${{ env.build_file }}
-              sed -i "/FROM .*/a LABEL org.opencontainers.image.source https://github.com/${GITHUB_REPOSITORY}"  ${{ env.build_file }}
+              sed -i "/FROM .*/a LABEL org.opencontainers.image.source=\"https://github.com/${GITHUB_REPOSITORY}\""  ${{ env.build_file }}
 
               if [[ $GITHUB_REF == refs/tags/* ]]; then
                 sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" ${{ env.build_file }}
