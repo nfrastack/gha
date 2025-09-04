@@ -98,7 +98,6 @@ runs:
         dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
         ghcr_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
         echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
-        echo "container_images=${ghcr_images}" >> $GITHUB_OUTPUT
     - name: Label
       id: Label
       shell: bash
