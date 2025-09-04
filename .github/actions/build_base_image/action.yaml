@@ -58,20 +58,28 @@ runs:
                     case "${DISTRO,,}" in
                         "alpine" )
                             if [ "${{ env.ALPINE_VARIANT_LATEST }}" = "${DISTRO_VARIANT}" ]; then
-                                image_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
+                                variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
                             fi
                         ;;
                         "debian" )
                             if [ "${{ env.DEBIAN_VARIANT_LATEST }}" = "${DISTRO_VARIANT}" ]; then
-                                image_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
+                                variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
                             fi
                         ;;
                     esac
 
+                    # Assume you have env vars: DISTRO_VARIANT, IMAGE_VARIANT
+                    build_identity="${DISTRO}${DISTRO_VARIANT:+_${DISTRO_VARIANT}}${IMAGE_VARIANT:+_${IMAGE_VARIANT}}"
+
+                    # Only add 'latest' if LATEST is 'true', or matches the build identity or just the distro
+                    if [[ "${LATEST}" == "${build_identity}" ]]; then
+                        image_latest=",${GITHUB_REPOSITORY}:latest"
+                    fi
+
                     if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,},${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}${image_latest}"
+                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,},${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}${variant_latest}${image_latest}"
                     else
-                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}${image_latest}"
+                        branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}${variant_latest}${image_latest}"
                     fi
                 ;;
                 "develop" )
