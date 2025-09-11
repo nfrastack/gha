@@ -78,6 +78,14 @@ jobs:
 
           tag_list=()
 
+
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            branch_name="${GITHUB_REF#refs/heads/}"
+            if [[ ! "${branch_name}" =~ ^(main|master)$ ]]; then
+              tag_list+=("${branch_name}")
+            fi
+          fi
+
           if [[ "${INPUT_LATEST,,}" == "true" ]]; then
             tag_list+=("latest")
           fi
