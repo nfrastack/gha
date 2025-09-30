@@ -78,7 +78,6 @@ jobs:
 
           tag_list=()
 
-
           if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
             branch_name="${GITHUB_REF#refs/heads/}"
             if [[ ! "${branch_name}" =~ ^(main|master)$ ]]; then
