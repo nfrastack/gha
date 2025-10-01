@@ -1,4 +1,4 @@
-yname: "Docker Login"
+name: "Docker Login"
 description: "Logs into DockerHub and GitHub Container Registry"
 inputs:
   docker_username:
