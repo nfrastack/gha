@@ -14,25 +14,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Login to DockerHub
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        username: ${{ inputs.docker_username }}
-        password: ${{ inputs.docker_password }}
-
-    - name: Login to GitHub Container Registry
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ inputs.github_token }}
-
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Do we need to clean the repository
       id: clean
       shell: bash
@@ -64,17 +45,17 @@ runs:
                     php_version_latest_tag=""
 
                     # Compose tag in format: <phpversion>-<distro>-<distro_variant>-<image_variant>
-                    build_identity="${PHP_BASE}-${DISTRO,,}-${DISTRO_VARIANT,,}-${IMAGE_VARIANT,,}"
+                    build_identity="${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
 
                     if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
                       # Only the default image_variant gets the simple tags
                       variant_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}"
-                      php_base_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}-${DISTRO_VARIANT,,}"
+                      php_base_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
                       if [ "${DISTRO_LATEST,,}" = "true" ]; then
-                        distro_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}-${DISTRO_VARIANT,,}"
+                        distro_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}"
                       fi
                       # Tag as :8.3-distro-variant, :8.4-distro-variant, etc. for all PHP_BASE
-                      php_base_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}-${DISTRO_VARIANT,,}"
+                      php_base_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
                       if [ "${LATEST,,}" = "true" ]; then
                         image_latest_tag=",${GITHUB_REPOSITORY}:latest"
                       fi
@@ -120,13 +101,13 @@ runs:
           git_tag=""
           # Always tag the full build identity
           if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}-${DISTRO_VARIANT,,}-faflopza"
+            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}_faflopza"
             # Add simple tags for default variant
             simple_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}"
             php_tag="${GITHUB_REPOSITORY}:${base_tag}"
             git_tag="$variant_tag,$simple_tag,$php_tag"
           else
-            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}-${DISTRO_VARIANT,,}-${IMAGE_VARIANT,,}"
+            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
             git_tag="$variant_tag"
           fi
             fi
@@ -166,6 +147,25 @@ runs:
                 sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_branch=\"${GITHUB_REF#refs/heads/}\"" Containerfile
             fi
         fi
+
+    - name: Login to DockerHub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ inputs.docker_username }}
+        password: ${{ inputs.docker_password }}
+
+    - name: Login to GitHub Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.github_token }}
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Build
       if: github.event_name != 'pull_request'
