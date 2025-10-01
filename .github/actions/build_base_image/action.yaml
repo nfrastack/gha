@@ -55,25 +55,12 @@ runs:
 
             case "${git_branch}" in
                 "main" | "master" )
-                    case "${DISTRO,,}" in
-                        "alpine" )
-                            if [ "${{ env.ALPINE_VARIANT_LATEST }}" = "${DISTRO_VARIANT}" ]; then
-                                variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
-                            fi
-                        ;;
-                        "debian" )
-                            if [ "${{ env.DEBIAN_VARIANT_LATEST }}" = "${DISTRO_VARIANT}" ]; then
-                                variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
-                            fi
-                        ;;
-                    esac
-
-                    # Assume you have env vars: DISTRO_VARIANT, IMAGE_VARIANT
-                    build_identity="${DISTRO}${DISTRO_VARIANT:+_${DISTRO_VARIANT}}${IMAGE_VARIANT:+_${IMAGE_VARIANT}}"
-
-                    # Only add 'latest' if LATEST is 'true', or matches the build identity or just the distro
-                    if [[ "${LATEST}" == "${build_identity}" ]]; then
+                    if [ "${LATEST,,}" == "true" ]; then
                         image_latest=",${GITHUB_REPOSITORY}:latest"
+                    fi
+
+                    if [ "${DISTRO_LATEST,,}" = "true" ]; then
+                        variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
                     fi
 
                     if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
@@ -89,10 +76,20 @@ runs:
         fi
 
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            base_tag="$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
+            git_tag=""
+            if [ "${LATEST,,}" == "true" ]; then
+                git_tag="${GITHUB_REPOSITORY}:${base_tag}"
+            fi
             if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,} | sed 's|refs/tags/||g')"
+                variant_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,} | sed 's|refs/tags/||g')"
             else
-                git_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')"
+                variant_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')"
+            fi
+            if [ -n "$git_tag" ]; then
+                git_tag="$git_tag,$variant_tag"
+            else
+                git_tag="$variant_tag"
             fi
         fi
 
@@ -111,7 +108,7 @@ runs:
       id: Label
       shell: bash
       run: |
-        image_name=${GITHUB_REPOSITORY/container-/}
+        image_name=${GITHUB_REPOSITORY/${GITHUB_REPOSITORY_OWNER}\/container-/image.}
         if [ -f "Containerfile" ] ; then
             sed -i \
                     -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" \
