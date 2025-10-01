@@ -1,0 +1,130 @@
+yname: "Docker Login"
+description: "Logs into DockerHub and GitHub Container Registry"
+inputs:
+  docker_username:
+    description: "DockerHub Username"
+    required: true
+  docker_password:
+    description: "DockerHub Password"
+    required: true
+  github_token:
+    description: "GitHub Token for GitHub Container Registry"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Login to DockerHub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ inputs.docker_username }}
+        password: ${{ inputs.docker_password }}
+
+    - name: Login to GitHub Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.github_token }}
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Do we need to clean the repository
+      id: clean
+      shell: bash
+      run: |
+        if [ -f "cleanup.sh" ] ; then
+          chmod +x cleanup.sh
+          ./cleanup.sh
+        fi
+
+    - name: Set BASE_IMAGE for upstream
+      shell: bash
+      run: |
+        base_image_tag="${PHP_BASE}"
+        if [ -n "${DISTRO}" ]; then
+          base_image_tag="${base_image_tag}-${DISTRO}"
+        fi
+        if [ -n "${DISTRO_VARIANT}" ]; then
+          base_image_tag="${base_image_tag}_${DISTRO_VARIANT}"
+        fi
+        echo "BASE_IMAGE=${BASE_IMAGE}:${base_image_tag}" >> $GITHUB_ENV
+
+    - name: Determine Branch Name and Set Variables
+      id: prep
+      shell: bash
+      run: |
+        php_tag="php${PHP_BASE}"
+        build_identity="${PHP_BASE}-${DISTRO,,}-${DISTRO_VARIANT,,}"
+
+        image_tags=""
+
+        if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+          branch="${GITHUB_REF#refs/heads/}"
+
+          if [[ "${branch}" == "main" || "${branch}" == "master" ]]; then
+            # Add 'latest' tag if LATEST is true
+            if [ "${LATEST,,}" = "true" ]; then
+              image_tags="${GITHUB_REPOSITORY}:latest,"
+            fi
+            # Add tags only if DISTRO_LATEST is true
+            if [ "${DISTRO_LATEST,,}" = "true" ]; then
+              image_tags="${image_tags}${GITHUB_REPOSITORY}:${php_tag},"
+              image_tags="${image_tags}${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,},"
+              image_tags="${image_tags}${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}-${DISTRO_VARIANT,,},"
+            fi
+            # Always add full build identity tag
+            image_tags="${image_tags}${GITHUB_REPOSITORY}:${build_identity}"
+          fi
+        fi
+
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          tag="${GITHUB_REF#refs/tags/}"
+          image_tags="${GITHUB_REPOSITORY}:${tag}-${php_tag}-${DISTRO,,}-${DISTRO_VARIANT,,},"
+          image_tags="${image_tags}${GITHUB_REPOSITORY}:${tag},${GITHUB_REPOSITORY}:${tag}-${DISTRO,,}"
+        fi
+
+        dockerhub_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
+        ghcr_images=$(echo "${image_tags}" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
+        echo "container_images=${dockerhub_images},${ghcr_images}" >> $GITHUB_OUTPUT
+    - name: Label
+      id: Label
+      shell: bash
+      run: |
+        image_name=${GITHUB_REPOSITORY/${GITHUB_REPOSITORY_OWNER}\/container-/image.}
+        if [ -f "Containerfile" ] ; then
+            sed -i \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_commit=\"${GITHUB_SHA}\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_committed_by=\"${GITHUB_ACTOR}\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro=\"${DISTRO}\"" \
+                    -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro_variant=\"${DISTRO_VARIANT}\"" \
+                    -e "/FROM .*/a LABEL org.opencontainers.image.source=\"https://github.com/${GITHUB_REPOSITORY}\"" \
+                  Containerfile
+
+            if [[ $GITHUB_REF == refs/tags/* ]]; then
+                sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" Containerfile
+            fi
+
+           if [[ $GITHUB_REF == refs/heads/* ]]; then
+                sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_branch=\"${GITHUB_REF#refs/heads/}\"" Containerfile
+            fi
+        fi
+
+    - name: Build
+      if: github.event_name != 'pull_request'
+      uses: docker/build-push-action@v6
+      with:
+        builder: ${{ steps.buildx.outputs.name }}
+        context: .
+        file: ./Containerfile
+        platforms: ${{ env.ARCH }}
+        push: true
+        tags: ${{ steps.prep.outputs.container_images }}
+        build-args: |
+          BASE_IMAGE=${{ env.BASE_IMAGE }}
