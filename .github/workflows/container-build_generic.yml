@@ -101,6 +101,23 @@ jobs:
           IMAGE_VARIANT="${INPUT_IMAGE_VARIANT:-}"
           TAG="${INPUT_TAG:-}"
 
+          base_image_tag=""
+          if [ -n "$TAG" ]; then
+            base_image_tag="$TAG"
+          fi
+          if [ -n "$INPUT_DISTRO" ]; then
+            base_image_tag="${base_image_tag:+${base_image_tag}-}${INPUT_DISTRO}"
+          fi
+          if [ -n "$INPUT_DISTRO_VARIANT" ]; then
+            base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
+          fi
+          if [ -n "$IMAGE_VARIANT" ]; then
+            base_image_tag="${base_image_tag}_${IMAGE_VARIANT}"
+          fi
+          if [ -n "$INPUT_BASE_IMAGE" ]; then
+            echo "BASE_IMAGE=${INPUT_BASE_IMAGE}:${base_image_tag}" >> $GITHUB_ENV
+          fi
+
           branch_name=""
           if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
             branch_name="${GITHUB_REF#refs/heads/}"
@@ -130,12 +147,12 @@ jobs:
           fi
 
           # Tag builds
-          if [[ -n "$base_tag" ]]; then
+          if [[ -n "${base_tag}" ]]; then
             tag_list+=("${branch_name}-${base_tag}")
-            if [[ "$LATEST" == "true" ]]; then
+            if [[ "${LATEST,,}" == "true" ]]; then
               tag_list+=("latest")
             fi
-            if [[ "$DISTRO_LATEST" == "true" && -n "$INPUT_DISTRO" ]]; then
+            if [[ "${DISTRO_LATEST,,}" == "true" && -n "${INPUT_DISTRO}" ]]; then
               tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}")
             fi
             if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
