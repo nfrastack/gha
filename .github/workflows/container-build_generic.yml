@@ -243,4 +243,4 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
-            ${{ inputs.base_image && format('BASE_IMAGE={0}', inputs.base_image) || '' }}
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
