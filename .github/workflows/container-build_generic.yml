@@ -70,27 +70,6 @@ jobs:
             ./cleanup.sh
           fi
 
-      - name: Set BASE_IMAGE
-        id: set_base_image
-        shell: bash
-        run: |
-          base_image_tag=""
-          if [ -n "$TAG" ]; then
-            base_image_tag="$TAG"
-          fi
-          if [ -n "$INPUT_DISTRO" ]; then
-            base_image_tag="${base_image_tag:+${base_image_tag}-}${INPUT_DISTRO}"
-          fi
-          if [ -n "$INPUT_DISTRO_VARIANT" ]; then
-            base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
-          fi
-          if [ -n "$IMAGE_VARIANT" ]; then
-            base_image_tag="${base_image_tag}_${IMAGE_VARIANT}"
-          fi
-          if [ -n "$INPUT_BASE_IMAGE" ]; then
-            echo "BASE_IMAGE=${INPUT_BASE_IMAGE}:${base_image_tag}" >> $GITHUB_ENV
-          fi
-
       - name: Prepare
         id: prep
         env:
