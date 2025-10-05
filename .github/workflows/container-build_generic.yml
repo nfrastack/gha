@@ -26,6 +26,14 @@ on:
         required: false
         type: string
         default: false
+      include_distro_tag:
+        required: false
+        type: boolean
+        default: false
+      include_variant_tag:
+        required: false
+        type: boolean
+        default: false
       platforms:
         required: false
         type: string
