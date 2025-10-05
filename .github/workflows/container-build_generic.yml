@@ -131,11 +131,8 @@ jobs:
           tag_list=()
 
           # Branch builds
-          if [[ -n "$branch_name" ]]; then
+          if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
             tag_list+=("${branch_name}")
-            if [[ "$LATEST" == "true" ]]; then
-              tag_list+=("latest")
-            fi
             if [[ "$DISTRO_LATEST" == "true" && -n "$INPUT_DISTRO" ]]; then
               tag_list+=("${branch_name}-${INPUT_DISTRO}")
             fi
@@ -143,6 +140,21 @@ jobs:
               tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
             elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
               tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+            fi
+          fi
+
+          # For main/master, only add 'latest' and variant tags
+          if [[ -n "${branch_name}" && "${branch_name}" =~ ^(main|master)$ ]]; then
+            if [[ "${LATEST,,}" == "true" ]]; then
+              tag_list+=("latest")
+            fi
+            if [[ "${DISTRO_LATEST,,}" == "true" && -n "${INPUT_DISTRO}" ]]; then
+              tag_list+=("latest-${INPUT_DISTRO}")
+            fi
+            if [[ -n "${INPUT_DISTRO}" && -n "${INPUT_DISTRO_VARIANT}" && -n "${IMAGE_VARIANT}" ]]; then
+              tag_list+=("latest-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+            elif [[ -n "${INPUT_DISTRO}" && -n "${INPUT_DISTRO_VARIANT}" ]]; then
+              tag_list+=("latest-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
             fi
           fi
 
@@ -244,3 +256,4 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
+
