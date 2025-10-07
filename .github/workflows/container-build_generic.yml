@@ -137,22 +137,39 @@ jobs:
 
           # Tag builds
           if [[ -n "${base_tag}" ]]; then
-            tag_list+=("${branch_name}-${base_tag}")
+            # Only add branch_name-base_tag if branch_name is not empty and not main/master
+            if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
+              tag_list+=("${branch_name}-${base_tag}")
+            fi
             if [[ "${LATEST,,}" == "true" ]]; then
               tag_list+=("latest")
             fi
             if [[ "${DISTRO_LATEST,,}" == "true" && -n "${INPUT_DISTRO}" ]]; then
-              tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}")
+              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
+                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}")
+              fi
             fi
             if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
-              tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
+                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+              fi
             elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
-              tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
+                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+              fi
             fi
           fi
 
-          all_tags=""
+          # Remove any tags that start with a dash or underscore (invalid docker tags)
+          valid_tag_list=()
           for t in "${tag_list[@]}"; do
+            if [[ ! "$t" =~ ^[-_] ]]; then
+              valid_tag_list+=("$t")
+            fi
+          done
+
+          all_tags=""
+          for t in "${valid_tag_list[@]}"; do
             all_tags+="${GITHUB_REPOSITORY}:$t,"
           done
           all_tags="${all_tags%,}"
