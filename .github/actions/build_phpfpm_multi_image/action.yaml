@@ -36,40 +36,30 @@ runs:
 
             case "${git_branch}" in
                 "main" | "master" )
-                    # Tag variables
-                    variant_latest_tag=""
-                    php_base_latest_tag=""
-                    php_base_tag=""
-                    image_latest_tag=""
-                    distro_latest_tag=""
-                    php_version_latest_tag=""
-
                     # Compose tag in format: <phpversion>-<distro>-<distro_variant>-<image_variant>
                     build_identity="${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
-
+                    extra_tags=""
                     if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
                       # Only the default image_variant gets the simple tags
-                      variant_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}"
-                      php_base_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
-                      # Tag as :8.3-distro-variant, :8.4-distro-variant, etc. for all PHP_BASE
-                      php_base_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
-                      # Add :<php_version>-<distro> tag if this is the default variant for the distro
-                      php_base_distro_tag=""
+                      # Always add :<php_version>-<distro> tag if this is the default variant for the distro
                       if [ "${DISTRO_LATEST,,}" = "true" ]; then
-                        distro_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}"
-                        php_base_distro_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}"
+                        extra_tags=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}"
                       fi
-                      if [ "${LATEST,,}" = "true" ]; then
-                        image_latest_tag=",${GITHUB_REPOSITORY}:latest"
-                      fi
-                      if [[ "${LATEST}" == "${build_identity}" ]]; then
-                        image_latest_tag=",${GITHUB_REPOSITORY}:latest"
-                      fi
+                      # Always add :<php_version>-<distro>_<distro_variant> tag
+                      extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
+                      # Always add :<distro> tag
+                      extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${DISTRO,,}"
+                      # Always add :<php_version> tag if php_version_latest is true
                       if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
-                        php_version_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}"
+                        extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${PHP_BASE}"
                       fi
-                      extra_tags="${variant_latest_tag}${php_base_latest_tag}${php_base_tag}${php_base_distro_tag}${distro_latest_tag}${image_latest_tag}${php_version_latest_tag}"
-                      branch_tag="${GITHUB_REPOSITORY}:${build_identity}${extra_tags}"
+                      # Always add :latest tag if latest is true
+                      if [ "${LATEST,,}" = "true" ]; then
+                        extra_tags="${extra_tags},${GITHUB_REPOSITORY}:latest"
+                      fi
+                      # Remove leading comma
+                      extra_tags="${extra_tags#,}"
+                      branch_tag="${GITHUB_REPOSITORY}:${build_identity},${extra_tags}"
                     else
                       # Other variants only get the full build identity tag
                       branch_tag="${GITHUB_REPOSITORY}:${build_identity}"
