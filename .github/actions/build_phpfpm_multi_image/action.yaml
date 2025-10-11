@@ -51,11 +51,14 @@ runs:
                       # Only the default image_variant gets the simple tags
                       variant_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}"
                       php_base_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
-                      if [ "${DISTRO_LATEST,,}" = "true" ]; then
-                        distro_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}"
-                      fi
                       # Tag as :8.3-distro-variant, :8.4-distro-variant, etc. for all PHP_BASE
                       php_base_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
+                      # Add :<php_version>-<distro> tag if this is the default variant for the distro
+                      php_base_distro_tag=""
+                      if [ "${DISTRO_LATEST,,}" = "true" ]; then
+                        distro_latest_tag=",${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}"
+                        php_base_distro_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}"
+                      fi
                       if [ "${LATEST,,}" = "true" ]; then
                         image_latest_tag=",${GITHUB_REPOSITORY}:latest"
                       fi
@@ -65,7 +68,7 @@ runs:
                       if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
                         php_version_latest_tag=",${GITHUB_REPOSITORY}:${PHP_BASE}"
                       fi
-                      extra_tags="${variant_latest_tag}${php_base_latest_tag}${php_base_tag}${distro_latest_tag}${image_latest_tag}${php_version_latest_tag}"
+                      extra_tags="${variant_latest_tag}${php_base_latest_tag}${php_base_tag}${php_base_distro_tag}${distro_latest_tag}${image_latest_tag}${php_version_latest_tag}"
                       branch_tag="${GITHUB_REPOSITORY}:${build_identity}${extra_tags}"
                     else
                       # Other variants only get the full build identity tag
