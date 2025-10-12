@@ -47,8 +47,10 @@ runs:
                       fi
                       # Always add :<php_version>-<distro>_<distro_variant> tag
                       extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}"
-                      # Always add :<distro> tag
-                      extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${DISTRO,,}"
+                      # Only add :<distro> tag if this is the default PHP version and default variant (LATEST is true)
+                      if [ "${LATEST,,}" = "true" ]; then
+                        extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${DISTRO,,}"
+                      fi
                       # Always add :<php_version> tag if php_version_latest is true
                       if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
                         extra_tags="${extra_tags},${GITHUB_REPOSITORY}:${PHP_BASE}"
