@@ -60,16 +60,15 @@ runs:
         if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
           branch="${GITHUB_REF#refs/heads/}"
 
-          if [[ "${branch}" == "main" || "${branch}" == "master" ]]; then
-            # Only add 'latest' and 'phpX.Y' tags for distro_latest builds
+          # Remove this check to allow tags for any branch
+          # if [[ "${branch}" == "main" || "${branch}" == "master" ]]; then
             if [ "${DISTRO_LATEST,,}" = "true" ]; then
               image_tags="${GITHUB_REPOSITORY}:latest,${GITHUB_REPOSITORY}:${php_tag}"
             fi
-            # Always add tags for phpX.Y-distro, phpX.Y-distro_variant, and full build identity
             image_tags="${image_tags},${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}"
             image_tags="${image_tags},${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}"
             image_tags="${image_tags},${GITHUB_REPOSITORY}:${build_identity}"
-          fi
+          # fi
         fi
 
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
@@ -145,4 +144,5 @@ runs:
         push: true
         tags: ${{ steps.prep.outputs.container_images }}
         build-args: |
+          BASE_IMAGE=${{ env.BASE_IMAGE }}
           BASE_IMAGE=${{ env.BASE_IMAGE }}
