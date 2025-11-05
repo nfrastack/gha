@@ -53,23 +53,41 @@ runs:
 
         if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
           branch="${GITHUB_REF#refs/heads/}"
+          safe_branch="$(echo "${branch}" | sed 's|/|-|g')"
 
-          # Only add 'latest' and 'phpX.Y' tags for distro_latest builds
-          if [ "${DISTRO_LATEST,,}" = "true" ]; then
-            image_tags="${GITHUB_REPOSITORY}:latest,${GITHUB_REPOSITORY}:${php_tag}"
-          fi
+          tags_to_emit=()
 
-          if [ "${TAG_VARIANTS}" = "simple" ]; then
-            # Only add <repo>:phpX.Y and <repo>:phpX.Y-<tag> (no -alpine, no -alpine_3.22)
-            :
+          # Always prefix tags with branch for non-main/master
+          if [[ ! "${branch}" =~ ^(main|master)$ ]]; then
+            # If latest=true, emit bare branch tag
+            if [[ "${LATEST,,}" == "true" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:${safe_branch}")
+            fi
+            # If distro_latest=true, emit branch-distro tag
+            if [[ "${DISTRO_LATEST,,}" == "true" && -n "${DISTRO}" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:${safe_branch}-${DISTRO,,}")
+            fi
+            # Always emit branch-prefixed php tag
+            tags_to_emit+=("${GITHUB_REPOSITORY}:${safe_branch}-${php_tag}")
+            # If variant present, emit branch-prefixed php-distro-variant tag
+            if [[ -n "${DISTRO}" && -n "${DISTRO_VARIANT}" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:${safe_branch}-${php_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}")
+            fi
           else
-            # Add more variants if needed
-            image_tags="${image_tags},${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}"
-            image_tags="${image_tags},${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}"
+            # main/master: normal tags, no branch prefix
+            if [[ "${LATEST,,}" == "true" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:latest")
+            fi
+            if [[ "${DISTRO_LATEST,,}" == "true" && -n "${DISTRO}" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:${DISTRO,,}")
+            fi
+            tags_to_emit+=("${GITHUB_REPOSITORY}:${php_tag}")
+            if [[ -n "${DISTRO}" && -n "${DISTRO_VARIANT}" ]]; then
+              tags_to_emit+=("${GITHUB_REPOSITORY}:${php_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}")
+            fi
           fi
 
-          build_identity="${php_tag}"
-          image_tags="${image_tags},${GITHUB_REPOSITORY}:${build_identity}"
+          image_tags="$(IFS=,; echo "${tags_to_emit[*]}")"
         fi
 
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
