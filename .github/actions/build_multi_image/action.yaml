@@ -10,6 +10,9 @@ inputs:
   github_token:
     description: "GitHub Token for GitHub Container Registry"
     required: true
+  arch:
+    description: "Build platforms (comma separated)"
+    required: true
 
 runs:
   using: "composite"
@@ -136,7 +139,7 @@ runs:
         builder: ${{ steps.buildx.outputs.name }}
         context: .
         file: ./Containerfile
-        platforms: ${{ env.ARCH }}
+        platforms: ${{ inputs.arch }}
         push: true
         tags: ${{ steps.prep.outputs.container_images }}
         build-args: |
