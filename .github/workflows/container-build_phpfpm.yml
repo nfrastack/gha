@@ -74,6 +74,7 @@ on:
 
 jobs:
   prepare:
+    name: "prepare (php${{ inputs.php_version }} ${{ inputs.distro }}_${{ inputs.distro_variant }} ${{ inputs.image_variant }})"
     runs-on: ubuntu-latest
     outputs:
       container_tags: ${{ steps.prep.outputs.container_tags }}
@@ -261,6 +262,7 @@ jobs:
           retention-days: 1
 
   build-amd64:
+    name: "build-amd64 (php${{ inputs.php_version }} ${{ inputs.distro }}_${{ inputs.distro_variant }} ${{ inputs.image_variant }})"
     runs-on: ubuntu-latest
     needs: prepare
     if: needs.prepare.outputs.has_amd64 == 'true' && github.event_name != 'pull_request'
@@ -294,6 +296,7 @@ jobs:
           build-args: ${{ needs.prepare.outputs.build_args }}
 
   build-arm64:
+    name: "build-arm64 (php${{ inputs.php_version }} ${{ inputs.distro }}_${{ inputs.distro_variant }} ${{ inputs.image_variant }})"
     runs-on: ubuntu-24.04-arm
     needs: prepare
     if: needs.prepare.outputs.has_arm64 == 'true' && github.event_name != 'pull_request'
@@ -327,6 +330,7 @@ jobs:
           build-args: ${{ needs.prepare.outputs.build_args }}
 
   manifest:
+    name: "manifest (php${{ inputs.php_version }} ${{ inputs.distro }}_${{ inputs.distro_variant }} ${{ inputs.image_variant }})"
     runs-on: ubuntu-latest
     needs: [prepare, build-amd64, build-arm64]
     if: always() && github.event_name != 'pull_request' && (needs.build-amd64.result == 'success' || needs.build-arm64.result == 'success')
@@ -375,6 +379,7 @@ jobs:
           done
 
   summary:
+    name: "summary (php${{ inputs.php_version }} ${{ inputs.distro }}_${{ inputs.distro_variant }} ${{ inputs.image_variant }})"
     runs-on: ubuntu-latest
     needs: [prepare, build-amd64, build-arm64, manifest]
     if: always() && github.event_name != 'pull_request'
