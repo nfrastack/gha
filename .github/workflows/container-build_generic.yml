@@ -1,4 +1,63 @@
-name: Generic Multi Option Push Build
+# =============================================================================
+# Generic Container Build Workflow
+# =============================================================================
+#
+# Universal reusable workflow for building and pushing multi-arch Docker images.
+# Supports simple images and PHP-dependent images via optional php inputs.
+#
+# INPUTS REFERENCE (switches):
+#
+#   base_image        - Upstream base image registry path
+#                       e.g. "ghcr.io/nfrastack/container-base"
+#                       For PHP images, the tag is auto-computed from php_version + distro
+#
+#   distro            - Linux distribution name (e.g. "alpine", "debian")
+#   distro_variant    - Distribution version (e.g. "3.23", "trixie")
+#   image_variant     - Image variant identifier (e.g. "core", "faflopza")
+#   tag               - Custom tag prefix (prepended to computed tags)
+#
+#   latest            - When "true", tag as "latest" on main/master pushes
+#   distro_latest     - When "true", tag with bare distro name (e.g. ":alpine")
+#
+#   php_version       - PHP version for PHP-FPM dependent images (e.g. "8.3")
+#                       When set, enables PHP-aware tag generation
+#   php_version_latest - When "true", tag with bare PHP version (e.g. ":8.3")
+#
+#   platforms         - Target architectures, comma-separated
+#                       Default: "linux/amd64,linux/arm64"
+#                       Each arch builds natively on its own runner
+#
+#   push_dockerhub    - Push to DockerHub (default: true)
+#   push_ghcr         - Push to GitHub Container Registry (default: true)
+#
+#   build_args        - Additional build-args passed to docker build (newline-separated KEY=VALUE)
+#
+# TAG GENERATION EXAMPLES:
+#
+#   Simple image (e.g. container-redis) on main push:
+#     latest=true, distro=alpine, distro_variant=3.23, distro_latest=true
+#     -> latest, alpine, alpine_3.23
+#
+#   Simple image on tag push (8-3.0.4):
+#     -> 8-3.0.4, 8-3.0.4-alpine_3.23, latest (if latest=true)
+#
+#   PHP image (e.g. container-wordpress) on main push:
+#     php_version=8.3, distro=alpine, distro_variant=3.23, php_version_latest=true
+#     -> php8.3-alpine_3.23, php8.3, latest (if latest=true)
+#
+#   PHP image on tag push (5.9.1):
+#     -> 5.9.1-php8.3-alpine_3.23, 5.9.1, php8.3 (if php_version_latest=true)
+#
+# VERSIONING SCHEMES:
+#   container-base:          YYYY.M.N      (e.g. 2026.4.0)
+#   container-nginx:         X.Y.Z         (e.g. 8.0.6)
+#   container-nginx-php-fpm: X.Y.Z         (e.g. 8.0.2)
+#   container-wordpress:     X.Y.Z         (e.g. 5.9.1)
+#   container-redis:         MAJOR-X.Y.Z   (e.g. 8-3.0.4)
+#
+# =============================================================================
+
+name: Generic Container Build
 
 on:
   workflow_call:
@@ -21,11 +80,18 @@ on:
       latest:
         required: false
         type: string
-        default: true
+        default: "true"
       distro_latest:
         required: false
         type: string
-        default: false
+        default: "false"
+      php_version:
+        required: false
+        type: string
+      php_version_latest:
+        required: false
+        type: string
+        default: "false"
       include_distro_tag:
         required: false
         type: boolean
@@ -46,23 +112,33 @@ on:
         required: false
         type: boolean
         default: true
+      build_args:
+        required: false
+        type: string
 
 jobs:
-  image_build:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      container_tags: ${{ steps.prep.outputs.container_tags }}
+      build_args: ${{ steps.prep.outputs.build_args }}
+      has_arm64: ${{ steps.arch.outputs.has_arm64 }}
+      has_amd64: ${{ steps.arch.outputs.has_amd64 }}
+      staging_prefix: ${{ steps.prep.outputs.staging_prefix }}
     env:
       build_file: Containerfile
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
       - name: Download Encrypted Files
         uses: actions/download-artifact@v4
         with:
           name: encrypted-artifacts
           path: ./
         continue-on-error: true
-      - name: Do we need to clean the repository
-        id: clean
+
+      - name: Clean repository
         shell: bash
         run: |
           if [ -f "cleanup.sh" ] ; then
@@ -70,7 +146,23 @@ jobs:
             ./cleanup.sh
           fi
 
-      - name: Prepare
+      - name: Determine architectures
+        id: arch
+        shell: bash
+        run: |
+          platforms="${{ inputs.platforms }}"
+          if echo "$platforms" | grep -q "arm64"; then
+            echo "has_arm64=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_arm64=false" >> $GITHUB_OUTPUT
+          fi
+          if echo "$platforms" | grep -q "amd64"; then
+            echo "has_amd64=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_amd64=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare tags and build-args
         id: prep
         env:
           INPUT_BASE_IMAGE: ${{ inputs.base_image }}
@@ -80,31 +172,54 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_LATEST: ${{ inputs.latest }}
           INPUT_DISTRO_LATEST: ${{ inputs.distro_latest }}
+          INPUT_PHP_VERSION: ${{ inputs.php_version }}
+          INPUT_PHP_VERSION_LATEST: ${{ inputs.php_version_latest }}
           INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
           INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
+          INPUT_BUILD_ARGS: ${{ inputs.build_args }}
         run: |
           LATEST="${INPUT_LATEST:-true}"
           DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
           IMAGE_VARIANT="${INPUT_IMAGE_VARIANT:-}"
           TAG="${INPUT_TAG:-}"
+          PHP_VERSION="${INPUT_PHP_VERSION:-}"
+          PHP_VERSION_LATEST="${INPUT_PHP_VERSION_LATEST:-false}"
 
-          base_image_tag=""
-          if [ -n "$TAG" ]; then
-            base_image_tag="$TAG"
-          fi
-          if [ -n "$INPUT_DISTRO" ]; then
-            base_image_tag="${base_image_tag:+${base_image_tag}-}${INPUT_DISTRO}"
-          fi
-          if [ -n "$INPUT_DISTRO_VARIANT" ]; then
-            base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
-          fi
-          if [ -n "$IMAGE_VARIANT" ]; then
-            base_image_tag="${base_image_tag}_${IMAGE_VARIANT}"
-          fi
+          # Compute BASE_IMAGE tag if base_image is set
           if [ -n "$INPUT_BASE_IMAGE" ]; then
-            echo "BASE_IMAGE=${INPUT_BASE_IMAGE}:${base_image_tag}" >> $GITHUB_ENV
+            base_image_tag=""
+            if [ -n "$PHP_VERSION" ]; then
+              # PHP-dependent images: BASE_IMAGE:php_version-distro_variant
+              base_image_tag="${PHP_VERSION}"
+              if [ -n "$INPUT_DISTRO" ]; then
+                base_image_tag="${base_image_tag}-${INPUT_DISTRO}"
+              fi
+              if [ -n "$INPUT_DISTRO_VARIANT" ]; then
+                base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
+              fi
+            else
+              # Simple images: BASE_IMAGE:tag-distro_variant
+              if [ -n "$TAG" ]; then
+                base_image_tag="$TAG"
+              fi
+              if [ -n "$INPUT_DISTRO" ]; then
+                base_image_tag="${base_image_tag:+${base_image_tag}-}${INPUT_DISTRO}"
+              fi
+              if [ -n "$INPUT_DISTRO_VARIANT" ]; then
+                base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
+              fi
+              if [ -n "$IMAGE_VARIANT" ]; then
+                base_image_tag="${base_image_tag}_${IMAGE_VARIANT}"
+              fi
+            fi
+            COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}:${base_image_tag}"
           fi
 
+          # Staging prefix for per-arch images (using short SHA)
+          staging_prefix="${GITHUB_SHA:0:12}"
+          echo "staging_prefix=${staging_prefix}" >> $GITHUB_OUTPUT
+
+          # Detect branch and tag
           branch_name=""
           if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
             branch_name="${GITHUB_REF#refs/heads/}"
@@ -115,91 +230,150 @@ jobs:
             base_tag="$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
           fi
 
+          # Build tag list
           tag_list=()
 
-          # Branch builds
-          if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
-            tag_list+=("${branch_name}")
-            if [[ "$DISTRO_LATEST" == "true" && -n "$INPUT_DISTRO" ]]; then
-              tag_list+=("${branch_name}-${INPUT_DISTRO}")
-            fi
-            if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
-              tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
-            elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
-              tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
-            fi
-          fi
+          if [ -n "$PHP_VERSION" ]; then
+            # ---- PHP-aware tag generation ----
+            php_tag="php${PHP_VERSION}"
 
-          # If no branch_name and base_tag exists, add base_tag (for tag builds)
-          if [[ -z "$branch_name" && -n "$base_tag" ]]; then
-            tag_list+=("${base_tag}")
-          fi
-
-          # Only add 'latest' and its variants if LATEST is true, regardless of branch
-          if [[ "${LATEST,,}" == "true" ]]; then
-            tag_list+=("latest")
-          fi
-
-          # Tag builds
-          if [[ -n "${base_tag}" ]]; then
-            # Only add branch_name-base_tag if branch_name is not empty and not main/master
             if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
-              tag_list+=("${branch_name}-${base_tag}")
-            fi
-            if [[ "${LATEST,,}" == "true" ]]; then
-              tag_list+=("latest")
-            fi
-            if [[ "${DISTRO_LATEST,,}" == "true" && -n "${INPUT_DISTRO}" ]]; then
-              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
-                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}")
+              # Feature/develop branch: branch-prefixed tags
+              safe_branch="$(echo "${branch_name}" | sed 's|/|-|g')"
+              if [[ "${LATEST,,}" == "true" ]]; then
+                tag_list+=("${safe_branch}")
+              fi
+              if [[ "${DISTRO_LATEST,,}" == "true" && -n "$INPUT_DISTRO" ]]; then
+                tag_list+=("${safe_branch}-${INPUT_DISTRO,,}")
+              fi
+              tag_list+=("${safe_branch}-${php_tag}")
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${safe_branch}-${php_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
+              fi
+            elif [[ "$branch_name" =~ ^(main|master)$ ]]; then
+              # Main branch: standard tags
+              if [[ "${LATEST,,}" == "true" ]]; then
+                tag_list+=("latest")
+              fi
+              if [[ "${DISTRO_LATEST,,}" == "true" && -n "$INPUT_DISTRO" ]]; then
+                tag_list+=("${INPUT_DISTRO,,}")
+              fi
+              if [[ "${PHP_VERSION_LATEST,,}" == "true" ]]; then
+                tag_list+=("${php_tag}")
+              fi
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${php_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
               fi
             fi
-            if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
-              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
-                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+
+            if [[ -n "$base_tag" ]]; then
+              # Tag/release build
+              tag_list+=("${base_tag}")
+              tag_list+=("${base_tag}-${php_tag}")
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${base_tag}-${php_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
               fi
-            elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
-              if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
-                tag_list+=("${branch_name}-${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+              if [[ -n "$INPUT_DISTRO" ]]; then
+                tag_list+=("${base_tag}-${INPUT_DISTRO,,}")
+              fi
+              if [[ "${PHP_VERSION_LATEST,,}" == "true" ]]; then
+                tag_list+=("${php_tag}")
+              fi
+              if [[ "${LATEST,,}" == "true" ]]; then
+                tag_list+=("latest")
+              fi
+            fi
+          else
+            # ---- Simple tag generation (non-PHP) ----
+
+            # Branch builds
+            if [[ -n "$branch_name" && ! "$branch_name" =~ ^(main|master)$ ]]; then
+              tag_list+=("${branch_name}")
+              if [[ "$DISTRO_LATEST" == "true" && -n "$INPUT_DISTRO" ]]; then
+                tag_list+=("${branch_name}-${INPUT_DISTRO}")
+              fi
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
+                tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+              elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${branch_name}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+              fi
+            fi
+
+            # Main/master branch
+            if [[ "$branch_name" =~ ^(main|master)$ ]]; then
+              if [[ "${LATEST,,}" == "true" ]]; then
+                tag_list+=("latest")
+              fi
+              if [[ "${DISTRO_LATEST,,}" == "true" && -n "$INPUT_DISTRO" ]]; then
+                tag_list+=("${INPUT_DISTRO}")
+              fi
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
+              fi
+            fi
+
+            # Tag builds
+            if [[ -n "${base_tag}" ]]; then
+              tag_list+=("${base_tag}")
+              if [[ "${LATEST,,}" == "true" ]]; then
+                tag_list+=("latest")
+              fi
+              if [[ "${DISTRO_LATEST,,}" == "true" && -n "${INPUT_DISTRO}" ]]; then
+                tag_list+=("${base_tag}-${INPUT_DISTRO}")
+              fi
+              if [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" && -n "$IMAGE_VARIANT" ]]; then
+                tag_list+=("${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}")
+              elif [[ -n "$INPUT_DISTRO" && -n "$INPUT_DISTRO_VARIANT" ]]; then
+                tag_list+=("${base_tag}-${INPUT_DISTRO}_${INPUT_DISTRO_VARIANT}")
               fi
             fi
           fi
 
-          # Remove any tags that start with a dash or underscore (invalid docker tags)
-          valid_tag_list=()
+          # Deduplicate tags
+          declare -A seen
+          unique_tags=()
           for t in "${tag_list[@]}"; do
-            if [[ ! "$t" =~ ^[-_] ]]; then
-              valid_tag_list+=("$t")
+            if [[ ! "$t" =~ ^[-_] && -z "${seen[$t]:-}" ]]; then
+              seen[$t]=1
+              unique_tags+=("$t")
             fi
           done
 
+          # Build final tag strings for registries
           all_tags=""
-          for t in "${valid_tag_list[@]}"; do
+          for t in "${unique_tags[@]}"; do
             all_tags+="${GITHUB_REPOSITORY}:$t,"
           done
           all_tags="${all_tags%,}"
 
-          echo "dockerhub_repo=${GITHUB_REPOSITORY/container-/}" >> $GITHUB_ENV
-          dockerhub_images=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
-          ghcr_images=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
-
           dockerhub_tags=""
           ghcr_tags=""
-
           if [ "${INPUT_PUSH_DOCKERHUB,,}" = "true" ] ; then
-            dockerhub_tags="$dockerhub_images"
+            dockerhub_tags=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
           fi
           if [ "${INPUT_PUSH_GHCR,,}" = "true" ] ; then
-            ghcr_tags="$ghcr_images"
+            ghcr_tags=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
           fi
 
           final_tags="$dockerhub_tags,$ghcr_tags"
           final_tags=$(echo "$final_tags" | sed 's/^,*//;s/,,*/,/g;s/,$//')
 
-          echo "container_images=$final_tags" >> $GITHUB_OUTPUT
+          echo "container_tags=$final_tags" >> $GITHUB_OUTPUT
 
-      - name: Label
-        id: Label
+          # Build-args
+          build_args=""
+          if [ -n "${COMPUTED_BASE_IMAGE:-}" ]; then
+            build_args="BASE_IMAGE=${COMPUTED_BASE_IMAGE}"
+          fi
+          if [ -n "${INPUT_BUILD_ARGS}" ]; then
+            build_args="${build_args}${build_args:+$'\n'}${INPUT_BUILD_ARGS}"
+          fi
+          # Use delimiter for multiline output
+          echo "build_args<<BUILDARGS_EOF" >> $GITHUB_OUTPUT
+          echo "$build_args" >> $GITHUB_OUTPUT
+          echo "BUILDARGS_EOF" >> $GITHUB_OUTPUT
+
+      - name: Label Containerfile
         run: |
           image_name=${GITHUB_REPOSITORY/${GITHUB_REPOSITORY_OWNER}\/container-/image.}
           if [ -f "${{ env.build_file }}" ] ; then
@@ -217,42 +391,225 @@ jobs:
                 sed -i "/FROM .*/a LABEL nfrastack.${image_name}.git_branch=\"${GITHUB_REF#refs/heads/}\"" ${{ env.build_file }}
               fi
           fi
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}
+          path: .
+          retention-days: 1
+
+  build-amd64:
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.has_amd64 == 'true' && github.event_name != 'pull_request'
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      build_file: Containerfile
+    steps:
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}
+
       - name: Set up Docker Buildx
-        id: buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: ${{ inputs.platforms }}
-
       - name: Login to DockerHub
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push
-        if: github.event_name != 'pull_request'
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
-          builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ./${{ env.build_file }}
-          platforms: ${{ inputs.platforms }}
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.prep.outputs.container_images }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
+          provenance: false
+          tags: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.staging_prefix }}-amd64
+          build-args: ${{ needs.prepare.outputs.build_args }}
 
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: prepare
+    if: needs.prepare.outputs.has_arm64 == 'true' && github.event_name != 'pull_request'
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      build_file: Containerfile
+    steps:
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./${{ env.build_file }}
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.staging_prefix }}-arm64
+          build-args: ${{ needs.prepare.outputs.build_args }}
+
+  manifest:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64]
+    if: always() && github.event_name != 'pull_request' && (needs.build-amd64.result == 'success' || needs.build-arm64.result == 'success')
+    steps:
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create and push manifests
+        env:
+          CONTAINER_TAGS: ${{ needs.prepare.outputs.container_tags }}
+          STAGING_PREFIX: ${{ needs.prepare.outputs.staging_prefix }}
+          HAS_AMD64: ${{ needs.prepare.outputs.has_amd64 }}
+          HAS_ARM64: ${{ needs.prepare.outputs.has_arm64 }}
+          AMD64_RESULT: ${{ needs.build-amd64.result }}
+          ARM64_RESULT: ${{ needs.build-arm64.result }}
+        run: |
+          # Determine which source images to use
+          sources=""
+          staging_repo="ghcr.io/${GITHUB_REPOSITORY}"
+          if [[ "$HAS_AMD64" == "true" && "$AMD64_RESULT" == "success" ]]; then
+            sources="${staging_repo}:${STAGING_PREFIX}-amd64"
+          fi
+          if [[ "$HAS_ARM64" == "true" && "$ARM64_RESULT" == "success" ]]; then
+            sources="${sources} ${staging_repo}:${STAGING_PREFIX}-arm64"
+          fi
+          sources=$(echo "$sources" | xargs)
+
+          if [ -z "$sources" ]; then
+            echo "::error::No successful arch builds to create manifest from"
+            exit 1
+          fi
+
+          # Create manifest for each final tag
+          IFS=',' read -ra TAGS <<< "$CONTAINER_TAGS"
+          for tag in "${TAGS[@]}"; do
+            tag=$(echo "$tag" | xargs)
+            if [ -z "$tag" ]; then continue; fi
+            echo "Creating manifest for: $tag"
+            docker buildx imagetools create -t "$tag" $sources
+          done
+
+      - name: Cleanup staging tags
+        if: always()
+        continue-on-error: true
+        run: |
+          echo "Staging tags (${STAGING_PREFIX}-amd64, ${STAGING_PREFIX}-arm64) can be cleaned up manually or via registry retention policies"
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64, manifest]
+    if: always() && github.event_name != 'pull_request'
+    steps:
+      - name: Build Summary
+        env:
+          AMD64_RESULT: ${{ needs.build-amd64.result }}
+          ARM64_RESULT: ${{ needs.build-arm64.result }}
+          MANIFEST_RESULT: ${{ needs.manifest.result }}
+          CONTAINER_TAGS: ${{ needs.prepare.outputs.container_tags }}
+          HAS_AMD64: ${{ needs.prepare.outputs.has_amd64 }}
+          HAS_ARM64: ${{ needs.prepare.outputs.has_arm64 }}
+        run: |
+          # Status emoji helper
+          status_icon() {
+            case "$1" in
+              success) echo "pass" ;;
+              skipped) echo "skip" ;;
+              *) echo "FAIL" ;;
+            esac
+          }
+
+          amd64_status=$(status_icon "$AMD64_RESULT")
+          arm64_status=$(status_icon "$ARM64_RESULT")
+          manifest_status=$(status_icon "$MANIFEST_RESULT")
+
+          {
+            echo "## Container Build Summary"
+            echo ""
+            echo "| Architecture | Status |"
+            echo "|-------------|--------|"
+            if [[ "$HAS_AMD64" == "true" ]]; then
+              echo "| amd64 | ${amd64_status} |"
+            fi
+            if [[ "$HAS_ARM64" == "true" ]]; then
+              echo "| arm64 | ${arm64_status} |"
+            fi
+            echo "| Manifest | ${manifest_status} |"
+            echo ""
+
+            if [[ "$MANIFEST_RESULT" == "success" ]]; then
+              echo "### Tags Pushed"
+              echo ""
+              IFS=',' read -ra TAGS <<< "$CONTAINER_TAGS"
+              for tag in "${TAGS[@]}"; do
+                tag=$(echo "$tag" | xargs)
+                if [ -n "$tag" ]; then
+                  echo "- \`${tag}\`"
+                fi
+              done
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+          # Emit error annotations for failures
+          if [[ "$AMD64_RESULT" != "success" && "$HAS_AMD64" == "true" ]]; then
+            echo "::error::amd64 build failed (status: ${AMD64_RESULT})"
+          fi
+          if [[ "$ARM64_RESULT" != "success" && "$HAS_ARM64" == "true" ]]; then
+            echo "::error::arm64 build failed (status: ${ARM64_RESULT})"
+          fi
+          if [[ "$MANIFEST_RESULT" != "success" ]]; then
+            echo "::error::Manifest creation failed (status: ${MANIFEST_RESULT})"
+          fi
+
+          # Fail the summary job if any required build failed
+          if [[ "$AMD64_RESULT" == "failure" || "$ARM64_RESULT" == "failure" || "$MANIFEST_RESULT" == "failure" ]]; then
+            exit 1
+          fi

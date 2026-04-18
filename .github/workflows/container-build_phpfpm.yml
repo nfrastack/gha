@@ -1,0 +1,410 @@
+# =============================================================================
+# PHP-FPM Container Build Workflow
+# =============================================================================
+#
+# Reusable workflow for building the container-nginx-php-fpm image.
+# Handles PHP version tagging, image variants, and multi-distro support.
+# Used by container-nginx-php-fpm.
+#
+# Build-args passed to Docker:
+#   BASE_IMAGE, DISTRO, PHP_BASE, DISTRO_VARIANT (combined with IMAGE_VARIANT),
+#   IMAGE_VARIANT
+#
+# Tag generation for faflopza (default) variant on main:
+#   {php}-{distro}_{variant}_{image_variant}  (always)
+#   {php}-{distro}_{variant}                  (always)
+#   {php}-{distro}                            (if distro_latest)
+#   {php}                                     (if php_version_latest)
+#   {distro}                                  (if latest)
+#   latest                                    (if latest)
+#
+# Tag generation on tag push (e.g. v8.0.2):
+#   {tag}-{distro}_{variant}_faflopza         (always for faflopza)
+#   {tag}-{distro}                            (always for faflopza)
+#   {tag}                                     (always for faflopza)
+#   {php}                                     (if php_version_latest)
+#   latest                                    (if latest)
+#
+# =============================================================================
+
+name: PHP-FPM Container Build
+
+on:
+  workflow_call:
+    inputs:
+      base_image:
+        required: true
+        type: string
+      distro:
+        required: true
+        type: string
+      distro_variant:
+        required: true
+        type: string
+      image_variant:
+        required: false
+        type: string
+      php_version:
+        required: true
+        type: string
+      php_version_latest:
+        required: false
+        type: string
+        default: "false"
+      latest:
+        required: false
+        type: string
+        default: "false"
+      distro_latest:
+        required: false
+        type: string
+        default: "false"
+      platforms:
+        required: false
+        type: string
+        default: linux/amd64,linux/arm64
+      push_dockerhub:
+        required: false
+        type: boolean
+        default: true
+      push_ghcr:
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      container_tags: ${{ steps.prep.outputs.container_tags }}
+      build_args: ${{ steps.prep.outputs.build_args }}
+      has_arm64: ${{ steps.arch.outputs.has_arm64 }}
+      has_amd64: ${{ steps.arch.outputs.has_amd64 }}
+      staging_prefix: ${{ steps.prep.outputs.staging_prefix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download Encrypted Files
+        uses: actions/download-artifact@v4
+        with:
+          name: encrypted-artifacts
+          path: ./
+        continue-on-error: true
+
+      - name: Clean repository
+        run: |
+          if [ -f "cleanup.sh" ] ; then
+            chmod +x cleanup.sh
+            ./cleanup.sh
+          fi
+
+      - name: Determine architectures
+        id: arch
+        run: |
+          platforms="${{ inputs.platforms }}"
+          echo "has_arm64=$(echo "$platforms" | grep -q arm64 && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "has_amd64=$(echo "$platforms" | grep -q amd64 && echo true || echo false)" >> $GITHUB_OUTPUT
+
+      - name: Prepare tags
+        id: prep
+        env:
+          INPUT_BASE_IMAGE: ${{ inputs.base_image }}
+          INPUT_DISTRO: ${{ inputs.distro }}
+          INPUT_DISTRO_VARIANT: ${{ inputs.distro_variant }}
+          INPUT_IMAGE_VARIANT: ${{ inputs.image_variant }}
+          INPUT_PHP_VERSION: ${{ inputs.php_version }}
+          INPUT_PHP_VERSION_LATEST: ${{ inputs.php_version_latest }}
+          INPUT_LATEST: ${{ inputs.latest }}
+          INPUT_DISTRO_LATEST: ${{ inputs.distro_latest }}
+          INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
+          INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
+        run: |
+          LATEST="${INPUT_LATEST:-false}"
+          DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
+          IMAGE_VARIANT="${INPUT_IMAGE_VARIANT:-}"
+          PHP_BASE="${INPUT_PHP_VERSION}"
+          PHP_VERSION_LATEST="${INPUT_PHP_VERSION_LATEST:-false}"
+
+          staging_prefix="${GITHUB_SHA:0:12}-${PHP_BASE}-${INPUT_DISTRO,,}-${INPUT_DISTRO_VARIANT,,}"
+          if [ -n "$IMAGE_VARIANT" ]; then
+            staging_prefix="${staging_prefix}-${IMAGE_VARIANT,,}"
+          fi
+          echo "staging_prefix=${staging_prefix}" >> $GITHUB_OUTPUT
+
+          # Compute BASE_IMAGE
+          COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}:${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}"
+
+          branch_name=""
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            branch_name="${GITHUB_REF#refs/heads/}"
+          fi
+
+          base_tag=""
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            base_tag="$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
+          fi
+
+          tag_list=()
+
+          if [[ "$branch_name" =~ ^(main|master)$ ]]; then
+            build_identity="${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
+
+            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+              tag_list+=("${build_identity}")
+              tag_list+=("${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
+              if [ "${DISTRO_LATEST,,}" = "true" ]; then
+                tag_list+=("${PHP_BASE}-${INPUT_DISTRO,,}")
+              fi
+              if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
+                tag_list+=("${PHP_BASE}")
+              fi
+              if [ "${LATEST,,}" = "true" ]; then
+                tag_list+=("${INPUT_DISTRO,,}")
+                tag_list+=("latest")
+              fi
+            else
+              tag_list+=("${build_identity}")
+            fi
+          elif [[ "$branch_name" == "develop" ]]; then
+            tag_list+=("develop")
+          elif [[ -n "$branch_name" ]]; then
+            safe_branch="$(echo "${branch_name}" | sed 's|/|-|g')"
+            tag_list+=("${safe_branch}")
+          fi
+
+          if [[ -n "$base_tag" ]]; then
+            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+              tag_list+=("${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_faflopza")
+              tag_list+=("${base_tag}-${INPUT_DISTRO,,}")
+              tag_list+=("${base_tag}")
+              if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
+                tag_list+=("${PHP_BASE}")
+              fi
+              if [ "${LATEST,,}" = "true" ]; then
+                tag_list+=("latest")
+              fi
+            else
+              tag_list+=("${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}")
+            fi
+          fi
+
+          # Deduplicate
+          declare -A seen
+          unique_tags=()
+          for t in "${tag_list[@]}"; do
+            if [[ ! "$t" =~ ^[-_] && -z "${seen[$t]:-}" ]]; then
+              seen[$t]=1
+              unique_tags+=("$t")
+            fi
+          done
+
+          all_tags=""
+          for t in "${unique_tags[@]}"; do
+            all_tags+="${GITHUB_REPOSITORY}:$t,"
+          done
+          all_tags="${all_tags%,}"
+
+          dockerhub_tags=""
+          ghcr_tags=""
+          if [ "${INPUT_PUSH_DOCKERHUB,,}" = "true" ] ; then
+            dockerhub_tags=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|docker.io/${GITHUB_REPOSITORY/container-/}|g")
+          fi
+          if [ "${INPUT_PUSH_GHCR,,}" = "true" ] ; then
+            ghcr_tags=$(echo "$all_tags" | sed "s|${GITHUB_REPOSITORY}|ghcr.io/${GITHUB_REPOSITORY}|g")
+          fi
+
+          final_tags="$dockerhub_tags,$ghcr_tags"
+          final_tags=$(echo "$final_tags" | sed 's/^,*//;s/,,*/,/g;s/,$//')
+          echo "container_tags=$final_tags" >> $GITHUB_OUTPUT
+
+          # Build-args
+          echo "build_args<<BUILDARGS_EOF" >> $GITHUB_OUTPUT
+          echo "BASE_IMAGE=${COMPUTED_BASE_IMAGE}" >> $GITHUB_OUTPUT
+          echo "DISTRO=${INPUT_DISTRO}" >> $GITHUB_OUTPUT
+          echo "PHP_BASE=${PHP_BASE}" >> $GITHUB_OUTPUT
+          if [ -n "$IMAGE_VARIANT" ]; then
+            echo "DISTRO_VARIANT=${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}" >> $GITHUB_OUTPUT
+            echo "IMAGE_VARIANT=${IMAGE_VARIANT}" >> $GITHUB_OUTPUT
+          else
+            echo "DISTRO_VARIANT=${INPUT_DISTRO_VARIANT}" >> $GITHUB_OUTPUT
+          fi
+          echo "BUILDARGS_EOF" >> $GITHUB_OUTPUT
+
+      - name: Label Containerfile
+        run: |
+          image_name=${GITHUB_REPOSITORY/${GITHUB_REPOSITORY_OWNER}\/container-/image.}
+          if [ -f "Containerfile" ] ; then
+              sed -i \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_repository=\"https://github.com/${GITHUB_REPOSITORY}\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_commit=\"${GITHUB_SHA}\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_committed_by=\"${GITHUB_ACTOR}\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_build_date=\"$(date +'%Y-%m-%d %H:%M:%S')\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro=\"${{ inputs.distro }}\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.distro_variant=\"${{ inputs.distro_variant }}\"" \
+                -e "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.image_variant=\"${{ inputs.image_variant }}\"" \
+                -e "/FROM .*/a LABEL org.opencontainers.image.source=\"https://github.com/${GITHUB_REPOSITORY}\"" \
+                Containerfile
+              if [[ $GITHUB_REF == refs/tags/* ]]; then
+                sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_tag=\"${GITHUB_REF#refs/tags/v}\"" Containerfile
+              fi
+              if [[ $GITHUB_REF == refs/heads/* ]]; then
+                sed -i "/FROM .*/a LABEL ${GITHUB_REPOSITORY_OWNER}.${image_name}.git_branch=\"${GITHUB_REF#refs/heads/}\"" Containerfile
+              fi
+          fi
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
+          path: .
+          retention-days: 1
+
+  build-amd64:
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.has_amd64 == 'true' && github.event_name != 'pull_request'
+    steps:
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.staging_prefix }}-amd64
+          build-args: ${{ needs.prepare.outputs.build_args }}
+
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    needs: prepare
+    if: needs.prepare.outputs.has_arm64 == 'true' && github.event_name != 'pull_request'
+    steps:
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.staging_prefix }}-arm64
+          build-args: ${{ needs.prepare.outputs.build_args }}
+
+  manifest:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64]
+    if: always() && github.event_name != 'pull_request' && (needs.build-amd64.result == 'success' || needs.build-arm64.result == 'success')
+    steps:
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Create and push manifests
+        env:
+          CONTAINER_TAGS: ${{ needs.prepare.outputs.container_tags }}
+          STAGING_PREFIX: ${{ needs.prepare.outputs.staging_prefix }}
+          HAS_AMD64: ${{ needs.prepare.outputs.has_amd64 }}
+          HAS_ARM64: ${{ needs.prepare.outputs.has_arm64 }}
+          AMD64_RESULT: ${{ needs.build-amd64.result }}
+          ARM64_RESULT: ${{ needs.build-arm64.result }}
+        run: |
+          sources=""
+          staging_repo="ghcr.io/${GITHUB_REPOSITORY}"
+          if [[ "$HAS_AMD64" == "true" && "$AMD64_RESULT" == "success" ]]; then
+            sources="${staging_repo}:${STAGING_PREFIX}-amd64"
+          fi
+          if [[ "$HAS_ARM64" == "true" && "$ARM64_RESULT" == "success" ]]; then
+            sources="${sources} ${staging_repo}:${STAGING_PREFIX}-arm64"
+          fi
+          sources=$(echo "$sources" | xargs)
+          if [ -z "$sources" ]; then
+            echo "::error::No successful arch builds to create manifest from"
+            exit 1
+          fi
+          IFS=',' read -ra TAGS <<< "$CONTAINER_TAGS"
+          for tag in "${TAGS[@]}"; do
+            tag=$(echo "$tag" | xargs)
+            if [ -z "$tag" ]; then continue; fi
+            echo "Creating manifest for: $tag"
+            docker buildx imagetools create -t "$tag" $sources
+          done
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [prepare, build-amd64, build-arm64, manifest]
+    if: always() && github.event_name != 'pull_request'
+    steps:
+      - name: Build Summary
+        env:
+          AMD64_RESULT: ${{ needs.build-amd64.result }}
+          ARM64_RESULT: ${{ needs.build-arm64.result }}
+          MANIFEST_RESULT: ${{ needs.manifest.result }}
+          CONTAINER_TAGS: ${{ needs.prepare.outputs.container_tags }}
+          HAS_AMD64: ${{ needs.prepare.outputs.has_amd64 }}
+          HAS_ARM64: ${{ needs.prepare.outputs.has_arm64 }}
+        run: |
+          status_icon() { case "$1" in success) echo "pass" ;; skipped) echo "skip" ;; *) echo "FAIL" ;; esac; }
+          {
+            echo "## Build: PHP ${{ inputs.php_version }} - ${{ inputs.distro }}_${{ inputs.distro_variant }} (${{ inputs.image_variant }})"
+            echo ""
+            echo "| Architecture | Status |"
+            echo "|-------------|--------|"
+            [[ "$HAS_AMD64" == "true" ]] && echo "| amd64 | $(status_icon "$AMD64_RESULT") |"
+            [[ "$HAS_ARM64" == "true" ]] && echo "| arm64 | $(status_icon "$ARM64_RESULT") |"
+            echo "| Manifest | $(status_icon "$MANIFEST_RESULT") |"
+            echo ""
+            if [[ "$MANIFEST_RESULT" == "success" ]]; then
+              echo "### Tags"
+              IFS=',' read -ra TAGS <<< "$CONTAINER_TAGS"
+              for tag in "${TAGS[@]}"; do tag=$(echo "$tag" | xargs); [ -n "$tag" ] && echo "- \`${tag}\`"; done
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+          [[ "$AMD64_RESULT" == "failure" ]] && echo "::error::amd64 build failed"
+          [[ "$ARM64_RESULT" == "failure" ]] && echo "::error::arm64 build failed"
+          [[ "$MANIFEST_RESULT" == "failure" ]] && echo "::error::Manifest creation failed"
+          [[ "$AMD64_RESULT" == "failure" || "$ARM64_RESULT" == "failure" || "$MANIFEST_RESULT" == "failure" ]] && exit 1 || true
