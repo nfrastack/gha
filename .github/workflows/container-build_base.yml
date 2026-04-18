@@ -53,6 +53,10 @@ on:
         required: false
         type: boolean
         default: true
+      base_image_version:
+        required: false
+        type: string
+        description: "Pin upstream distro image to a specific version. Overrides distro_variant in FROM reference."
 
 jobs:
   prepare:
@@ -101,6 +105,7 @@ jobs:
           INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
           INPUT_IMAGE_BASE_MODULES: ${{ inputs.image_base_modules }}
           INPUT_IMAGE_MODULES: ${{ inputs.image_modules }}
+          INPUT_BASE_IMAGE_VERSION: ${{ inputs.base_image_version }}
         run: |
           LATEST="${INPUT_LATEST:-false}"
           DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
@@ -182,10 +187,11 @@ jobs:
           final_tags=$(echo "$final_tags" | sed 's/^,*//;s/,,*/,/g;s/,$//')
           echo "container_tags=$final_tags" >> $GITHUB_OUTPUT
 
-          # Build-args
+          # Build-args — BASE_IMAGE is the full upstream distro reference
+          # If base_image_version is set, use it instead of distro_variant
+          distro_tag="${INPUT_BASE_IMAGE_VERSION:-${INPUT_DISTRO_VARIANT}}"
           echo "build_args<<BUILDARGS_EOF" >> $GITHUB_OUTPUT
-          echo "DISTRO=${INPUT_DISTRO}" >> $GITHUB_OUTPUT
-          echo "DISTRO_VARIANT=${INPUT_DISTRO_VARIANT}" >> $GITHUB_OUTPUT
+          echo "BASE_IMAGE=docker.io/${INPUT_DISTRO}:${distro_tag}" >> $GITHUB_OUTPUT
           if [ -n "${INPUT_IMAGE_BASE_MODULES}" ]; then
             echo "IMAGE_BASE_MODULES=${INPUT_IMAGE_BASE_MODULES}" >> $GITHUB_OUTPUT
           fi

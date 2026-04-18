@@ -115,6 +115,14 @@ on:
       build_args:
         required: false
         type: string
+      base_image_version:
+        required: false
+        type: string
+        description: "Pin upstream base image to a specific version (e.g. '8.0.2'). Prepended to computed tag."
+      base_image_digest:
+        required: false
+        type: string
+        description: "Pin upstream base image to a specific SHA digest (e.g. 'sha256:abc123...'). Overrides tag entirely."
 
 jobs:
   prepare:
@@ -178,6 +186,8 @@ jobs:
           INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
           INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
           INPUT_BUILD_ARGS: ${{ inputs.build_args }}
+          INPUT_BASE_IMAGE_VERSION: ${{ inputs.base_image_version }}
+          INPUT_BASE_IMAGE_DIGEST: ${{ inputs.base_image_digest }}
         run: |
           LATEST="${INPUT_LATEST:-true}"
           DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
@@ -185,13 +195,18 @@ jobs:
           TAG="${INPUT_TAG:-}"
           PHP_VERSION="${INPUT_PHP_VERSION:-}"
           PHP_VERSION_LATEST="${INPUT_PHP_VERSION_LATEST:-false}"
+          BASE_IMAGE_VERSION="${INPUT_BASE_IMAGE_VERSION:-}"
 
           # Compute BASE_IMAGE tag if base_image is set
           if [ -n "$INPUT_BASE_IMAGE" ]; then
             base_image_tag=""
+            # If a specific version is pinned, use it as the tag prefix
+            if [ -n "$BASE_IMAGE_VERSION" ]; then
+              base_image_tag="${BASE_IMAGE_VERSION}"
+            fi
             if [ -n "$PHP_VERSION" ]; then
-              # PHP-dependent images: BASE_IMAGE:php_version-distro_variant
-              base_image_tag="${PHP_VERSION}"
+              # PHP-dependent images: BASE_IMAGE:[version-]php_version-distro_variant
+              base_image_tag="${base_image_tag:+${base_image_tag}-}${PHP_VERSION}"
               if [ -n "$INPUT_DISTRO" ]; then
                 base_image_tag="${base_image_tag}-${INPUT_DISTRO}"
               fi
@@ -199,9 +214,9 @@ jobs:
                 base_image_tag="${base_image_tag}_${INPUT_DISTRO_VARIANT}"
               fi
             else
-              # Simple images: BASE_IMAGE:tag-distro_variant
+              # Simple images: BASE_IMAGE:[version-]tag-distro_variant
               if [ -n "$TAG" ]; then
-                base_image_tag="$TAG"
+                base_image_tag="${base_image_tag:+${base_image_tag}-}$TAG"
               fi
               if [ -n "$INPUT_DISTRO" ]; then
                 base_image_tag="${base_image_tag:+${base_image_tag}-}${INPUT_DISTRO}"
@@ -213,7 +228,12 @@ jobs:
                 base_image_tag="${base_image_tag}_${IMAGE_VARIANT}"
               fi
             fi
-            COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}:${base_image_tag}"
+            # Digest overrides tag entirely
+            if [ -n "${INPUT_BASE_IMAGE_DIGEST:-}" ]; then
+              COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}@${INPUT_BASE_IMAGE_DIGEST}"
+            else
+              COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}:${base_image_tag}"
+            fi
           fi
 
           # Staging prefix for per-arch images (using short SHA)

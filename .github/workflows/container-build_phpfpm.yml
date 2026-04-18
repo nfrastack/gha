@@ -71,6 +71,14 @@ on:
         required: false
         type: boolean
         default: true
+      base_image_version:
+        required: false
+        type: string
+        description: "Pin upstream base image to a specific version (e.g. '8.0.6'). Prepended to computed tag."
+      base_image_digest:
+        required: false
+        type: string
+        description: "Pin upstream base image to a specific SHA digest (e.g. 'sha256:abc123...'). Overrides tag entirely."
 
 jobs:
   prepare:
@@ -120,6 +128,8 @@ jobs:
           INPUT_DISTRO_LATEST: ${{ inputs.distro_latest }}
           INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
           INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
+          INPUT_BASE_IMAGE_VERSION: ${{ inputs.base_image_version }}
+          INPUT_BASE_IMAGE_DIGEST: ${{ inputs.base_image_digest }}
         run: |
           LATEST="${INPUT_LATEST:-false}"
           DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
@@ -133,8 +143,8 @@ jobs:
           fi
           echo "staging_prefix=${staging_prefix}" >> $GITHUB_OUTPUT
 
-          # Compute BASE_IMAGE
-          COMPUTED_BASE_IMAGE="${INPUT_BASE_IMAGE}:${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}"
+          # BASE_IMAGE is passed without a tag — the Containerfile's FROM line
+          # constructs the full reference as ${BASE_IMAGE}:${DISTRO}_${DISTRO_VARIANT}
 
           branch_name=""
           if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
@@ -219,17 +229,24 @@ jobs:
           final_tags=$(echo "$final_tags" | sed 's/^,*//;s/,,*/,/g;s/,$//')
           echo "container_tags=$final_tags" >> $GITHUB_OUTPUT
 
-          # Build-args
-          echo "build_args<<BUILDARGS_EOF" >> $GITHUB_OUTPUT
-          echo "BASE_IMAGE=${COMPUTED_BASE_IMAGE}" >> $GITHUB_OUTPUT
-          echo "DISTRO=${INPUT_DISTRO}" >> $GITHUB_OUTPUT
-          echo "PHP_BASE=${PHP_BASE}" >> $GITHUB_OUTPUT
-          if [ -n "$IMAGE_VARIANT" ]; then
-            echo "DISTRO_VARIANT=${INPUT_DISTRO_VARIANT}_${IMAGE_VARIANT}" >> $GITHUB_OUTPUT
-            echo "IMAGE_VARIANT=${IMAGE_VARIANT}" >> $GITHUB_OUTPUT
-          else
-            echo "DISTRO_VARIANT=${INPUT_DISTRO_VARIANT}" >> $GITHUB_OUTPUT
+          # Build-args — BASE_IMAGE includes the full tag
+          # Containerfile just does FROM ${BASE_IMAGE}
+          # If base_image_version is set, prepend it: version-distro_variant
+          base_tag=""
+          if [ -n "${INPUT_BASE_IMAGE_VERSION:-}" ]; then
+            base_tag="${INPUT_BASE_IMAGE_VERSION}"
           fi
+          base_tag="${base_tag:+${base_tag}-}${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}"
+          if [ -n "$IMAGE_VARIANT" ]; then
+            base_tag="${base_tag}_${IMAGE_VARIANT,,}"
+          fi
+          echo "build_args<<BUILDARGS_EOF" >> $GITHUB_OUTPUT
+          if [ -n "${INPUT_BASE_IMAGE_DIGEST:-}" ]; then
+            echo "BASE_IMAGE=${INPUT_BASE_IMAGE}@${INPUT_BASE_IMAGE_DIGEST}" >> $GITHUB_OUTPUT
+          else
+            echo "BASE_IMAGE=${INPUT_BASE_IMAGE}:${base_tag}" >> $GITHUB_OUTPUT
+          fi
+          echo "PHP_BASE=${PHP_BASE}" >> $GITHUB_OUTPUT
           echo "BUILDARGS_EOF" >> $GITHUB_OUTPUT
 
       - name: Label Containerfile
