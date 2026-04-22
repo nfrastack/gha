@@ -19,11 +19,15 @@
 #   latest                                    (if latest)
 #
 # Tag generation on tag push (e.g. v8.0.2):
-#   {tag}-{distro}_{variant}_faflopza         (always for faflopza)
-#   {tag}-{distro}                            (always for faflopza)
-#   {tag}                                     (always for faflopza)
+#   {php}-{tag}-{distro}_{variant}_faflopza   (always for faflopza)
+#   {php}-{tag}-{distro}_{variant}            (always for faflopza)
+#   {php}-{tag}-{distro}                      (if distro_latest, faflopza only)
+#   {php}-{tag}                               (always for faflopza)
 #   {php}                                     (if php_version_latest)
 #   latest                                    (if latest)
+#
+#   Non-faflopza variants on tag push:
+#   {php}-{tag}-{distro}_{variant}_{image_variant}  (always)
 #
 # =============================================================================
 
@@ -186,9 +190,12 @@ jobs:
 
           if [[ -n "$base_tag" ]]; then
             if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-              tag_list+=("${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_faflopza")
-              tag_list+=("${base_tag}-${INPUT_DISTRO,,}")
-              tag_list+=("${base_tag}")
+              tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_faflopza")
+              tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
+              if [ "${DISTRO_LATEST,,}" = "true" ]; then
+                tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}")
+              fi
+              tag_list+=("${PHP_BASE}-${base_tag}")
               if [ "${PHP_VERSION_LATEST,,}" = "true" ]; then
                 tag_list+=("${PHP_BASE}")
               fi
@@ -196,7 +203,7 @@ jobs:
                 tag_list+=("latest")
               fi
             else
-              tag_list+=("${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}")
+              tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}")
             fi
           fi
 
