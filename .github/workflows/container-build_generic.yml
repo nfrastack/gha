@@ -238,8 +238,20 @@ jobs:
             fi
           fi
 
-          # Staging prefix for per-arch images (using short SHA)
+          # Staging prefix for per-arch images (unique per matrix entry)
           staging_prefix="${GITHUB_SHA:0:12}"
+          if [ -n "$PHP_VERSION" ]; then
+            staging_prefix="${staging_prefix}-${PHP_VERSION}"
+          fi
+          if [ -n "$INPUT_DISTRO" ]; then
+            staging_prefix="${staging_prefix}-${INPUT_DISTRO,,}"
+          fi
+          if [ -n "$INPUT_DISTRO_VARIANT" ]; then
+            staging_prefix="${staging_prefix}-${INPUT_DISTRO_VARIANT,,}"
+          fi
+          if [ -n "$IMAGE_VARIANT" ]; then
+            staging_prefix="${staging_prefix}-${IMAGE_VARIANT,,}"
+          fi
           echo "staging_prefix=${staging_prefix}" >> $GITHUB_OUTPUT
 
           # Detect branch and tag
@@ -421,7 +433,7 @@ jobs:
       - name: Upload workspace
         uses: actions/upload-artifact@v4
         with:
-          name: build-workspace-${{ github.run_id }}
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
           path: /tmp/workspace.tar
           retention-days: 1
 
@@ -438,7 +450,7 @@ jobs:
       - name: Download workspace
         uses: actions/download-artifact@v4
         with:
-          name: build-workspace-${{ github.run_id }}
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
 
       - name: Extract workspace
         run: tar xf workspace.tar && rm workspace.tar
@@ -484,7 +496,7 @@ jobs:
       - name: Download workspace
         uses: actions/download-artifact@v4
         with:
-          name: build-workspace-${{ github.run_id }}
+          name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
 
       - name: Extract workspace (restores file permissions)
         run: tar xf workspace.tar && rm workspace.tar
