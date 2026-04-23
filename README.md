@@ -48,6 +48,7 @@ jobs:
       latest: ${{ matrix.latest }}
       distro_latest: ${{ matrix.distro_latest }}
       platforms: ${{ matrix.arch }}
+      base_image_version: ${{ matrix.base_image_version || '' }}
     secrets: inherit
 
   cleanup:
@@ -105,6 +106,7 @@ jobs:
       latest: ${{ matrix.build.latest || 'false' }}
       distro_latest: ${{ matrix.build.distro_latest || 'false' }}
       platforms: ${{ matrix.build.arch || 'linux/amd64,linux/arm64' }}
+      base_image_version: ${{ matrix.build.base_image_version || '' }}
     secrets: inherit
 ```
 
@@ -179,7 +181,7 @@ Key: `php_version_latest: "false"` on Debian entries means `docker pull nfrastac
 | `push_dockerhub`     | boolean | `true`                    | Push to DockerHub                                                           |
 | `push_ghcr`          | boolean | `true`                    | Push to GHCR                                                                |
 | `build_args`         | string  | -                         | Extra build-args (newline-separated `KEY=VALUE`)                            |
-| `base_image_version` | string  | -                         | Pin base image to version (e.g. `8.0.2`). Prepended to tag                  |
+| `base_image_version` | string  | -                         | Pin base image to a version. See [Pinning](#pinning-base-image-versions)    |
 | `base_image_digest`  | string  | -                         | Pin base image to SHA digest. Overrides tag entirely                        |
 
 ### How `latest`, `distro_latest`, and `php_version_latest` interact
@@ -194,16 +196,31 @@ These three flags control the tag hierarchy. Set each to `"true"` on exactly ONE
 
 ### Pinning base image versions
 
-By default, images pull the `:latest` equivalent of their upstream base. To pin:
+By default, images pull the `:latest` equivalent of their upstream base. To pin to a specific release, add `base_image_version` to your matrix entry:
 
 ```yaml
-# Pin to a specific release version
-with:
-  base_image: "ghcr.io/nfrastack/container-base"
-  base_image_version: "2026.3.3"
-  # Pulls: ghcr.io/nfrastack/container-base:2026.3.3-alpine_3.23
+# Simple image (e.g. redis) — pins container-base to release 2026.3.3
+# Pulls: ghcr.io/nfrastack/container-base:2026.3.3-alpine_3.23
+matrix:
+  include:
+    - { distro: "alpine", distro_variant: "3.23", latest: "true", arch: "linux/amd64,linux/arm64", base_image_version: "2026.3.3" }
 
-# Pin to an exact SHA digest (most reproducible)
+# PHP image (e.g. bookstack) — pins container-nginx-php-fpm to release 8.0.2
+# Pulls: ghcr.io/nfrastack/container-nginx-php-fpm:8.4-8.0.2-alpine_3.23
+matrix:
+  build:
+    - { php_version: "8.4", distro: "alpine", distro_variant: "3.23", ..., base_image_version: "8.0.2" }
+```
+
+Tag format with `base_image_version`:
+
+- **Simple images:** `{version}-{distro}_{variant}` (e.g. `2026.3.3-alpine_3.23`)
+- **PHP images:** `{php}-{version}-{distro}_{variant}` (e.g. `8.4-8.0.2-alpine_3.23`)
+
+Omit `base_image_version` from a matrix entry to pull the latest upstream (default behavior).
+
+```yaml
+# Pin to an exact SHA digest (most reproducible, overrides tag entirely)
 with:
   base_image: "ghcr.io/nfrastack/container-base"
   base_image_digest: "sha256:a1b2c3d4e5f6..."

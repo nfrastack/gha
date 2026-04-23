@@ -200,13 +200,12 @@ jobs:
           # Compute BASE_IMAGE tag if base_image is set
           if [ -n "$INPUT_BASE_IMAGE" ]; then
             base_image_tag=""
-            # If a specific version is pinned, use it as the tag prefix
-            if [ -n "$BASE_IMAGE_VERSION" ]; then
-              base_image_tag="${BASE_IMAGE_VERSION}"
-            fi
             if [ -n "$PHP_VERSION" ]; then
-              # PHP-dependent images: BASE_IMAGE:[version-]php_version-distro_variant
-              base_image_tag="${base_image_tag:+${base_image_tag}-}${PHP_VERSION}"
+              # PHP-dependent images: BASE_IMAGE:php_version[-version]-distro_variant
+              base_image_tag="${PHP_VERSION}"
+              if [ -n "$BASE_IMAGE_VERSION" ]; then
+                base_image_tag="${base_image_tag}-${BASE_IMAGE_VERSION}"
+              fi
               if [ -n "$INPUT_DISTRO" ]; then
                 base_image_tag="${base_image_tag}-${INPUT_DISTRO}"
               fi
@@ -215,6 +214,9 @@ jobs:
               fi
             else
               # Simple images: BASE_IMAGE:[version-]tag-distro_variant
+              if [ -n "$BASE_IMAGE_VERSION" ]; then
+                base_image_tag="${BASE_IMAGE_VERSION}"
+              fi
               if [ -n "$TAG" ]; then
                 base_image_tag="${base_image_tag:+${base_image_tag}-}$TAG"
               fi

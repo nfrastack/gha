@@ -36,6 +36,10 @@ on:
         required: false
         type: boolean
         default: true
+      base_image_version:
+        required: false
+        type: string
+        description: "Pin upstream base image to a specific version (e.g. '2026.4.0'). Appended to base_image tag."
 
 jobs:
   image_build:
@@ -71,6 +75,7 @@ jobs:
           INPUT_LATEST: ${{ inputs.latest }}
           INPUT_PUSH_DOCKERHUB: ${{ inputs.push_dockerhub }}
           INPUT_PUSH_GHCR: ${{ inputs.push_ghcr }}
+          INPUT_BASE_IMAGE_VERSION: ${{ inputs.base_image_version }}
         run: |
           LATEST="${INPUT_LATEST:-true}"
 
@@ -191,6 +196,6 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
-            ${{ inputs.base_image && format('BASE_IMAGE={0}', inputs.base_image) || '' }}
+            ${{ inputs.base_image && inputs.base_image_version && format('BASE_IMAGE={0}:{1}', inputs.base_image, inputs.base_image_version) || inputs.base_image && format('BASE_IMAGE={0}', inputs.base_image) || '' }}
             ${{ inputs.distro && format('DISTRO={0}', inputs.distro) || '' }}
             ${{ inputs.distro_variant && format('DISTRO_VARIANT={0}', inputs.distro_variant) || '' }}
