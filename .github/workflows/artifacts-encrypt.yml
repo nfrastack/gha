@@ -10,11 +10,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout Age
         id: checkout_age
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: tiredofit/license
           sparse-checkout: |
@@ -108,7 +108,7 @@ jobs:
 
           rm -rf "${pubkey}"
       - name: Upload Encrypted Files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: encrypted-artifacts
           path: |

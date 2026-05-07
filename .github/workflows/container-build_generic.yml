@@ -138,10 +138,10 @@ jobs:
       build_file: Containerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download Encrypted Files
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: encrypted-artifacts
           path: ./
@@ -431,7 +431,7 @@ jobs:
         run: tar cf /tmp/workspace.tar .
 
       - name: Upload workspace
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
           path: /tmp/workspace.tar
@@ -448,7 +448,7 @@ jobs:
       build_file: Containerfile
     steps:
       - name: Download workspace
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
 
@@ -494,7 +494,7 @@ jobs:
       build_file: Containerfile
     steps:
       - name: Download workspace
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-workspace-${{ github.run_id }}-${{ inputs.php_version }}-${{ inputs.distro }}-${{ inputs.distro_variant }}-${{ inputs.image_variant }}
 
