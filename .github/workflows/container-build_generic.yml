@@ -123,6 +123,11 @@ on:
         required: false
         type: string
         description: "Pin upstream base image to a specific SHA digest (e.g. 'sha256:abc123...'). Overrides tag entirely."
+      base_image_php_prefix:
+        required: false
+        type: string
+        default: "false"
+        description: "When 'true', resolve upstream base image with 'php{version}' prefix (e.g. ghcr.io/.../container-laravel:php8.4-alpine_3.23). Default 'false' resolves bare-version tags (e.g. container-nginx-php-fpm:8.4-alpine_3.23)."
 
 jobs:
   prepare:
@@ -188,6 +193,7 @@ jobs:
           INPUT_BUILD_ARGS: ${{ inputs.build_args }}
           INPUT_BASE_IMAGE_VERSION: ${{ inputs.base_image_version }}
           INPUT_BASE_IMAGE_DIGEST: ${{ inputs.base_image_digest }}
+          INPUT_BASE_IMAGE_PHP_PREFIX: ${{ inputs.base_image_php_prefix }}
         run: |
           LATEST="${INPUT_LATEST:-true}"
           DISTRO_LATEST="${INPUT_DISTRO_LATEST:-false}"
@@ -201,8 +207,12 @@ jobs:
           if [ -n "$INPUT_BASE_IMAGE" ]; then
             base_image_tag=""
             if [ -n "$PHP_VERSION" ]; then
-              # PHP-dependent images: BASE_IMAGE:php_version[-version]-distro_variant
-              base_image_tag="${PHP_VERSION}"
+              # PHP-dependent images. The php_version segment uses the 'php' prefix when the upstream publishes prefixed tags (e.g. container-laravel publishes 'php8.4-alpine_3.23'); leave it off when the upstream publishes bare-version tags (e.g. container-nginx-php-fpm publishes '8.4-alpine_3.23').
+              if [ "${INPUT_BASE_IMAGE_PHP_PREFIX,,}" = "true" ]; then
+                base_image_tag="php${PHP_VERSION}"
+              else
+                base_image_tag="${PHP_VERSION}"
+              fi
               if [ -n "$BASE_IMAGE_VERSION" ]; then
                 base_image_tag="${base_image_tag}-${BASE_IMAGE_VERSION}"
               fi
