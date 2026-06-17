@@ -8,7 +8,7 @@ Reusable workflows for building multi-architecture Docker container images with 
 | ----------------------------- | ----------------------- | ---------------------------------------------------- |
 | `container-build_generic.yml` | 47 repos                | Generic + PHP-dependent images                       |
 | `container-build_base.yml`    | container-base          | Base distro images with module selection             |
-| `container-build_multi.yml`   | container-nginx         | Images with image_variant (core/faflopza/faflopzaze) |
+| `container-build_multi.yml`   | container-nginx         | Images with image_variant (core/faflopza/faflopzaze); core is default |
 | `container-build_phpfpm.yml`  | container-nginx-php-fpm | PHP-FPM images with image_variant                    |
 | `artifacts-encrypt.yml`       | All repos               | Encrypt sensitive files before build                 |
 | `artifacts-remove.yml`        | All repos               | Clean up encrypted artifacts after build             |
@@ -39,7 +39,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { distro: "alpine", distro_variant: "3.23", latest: "true", distro_latest: "true", arch: "linux/amd64,linux/arm64" }
+          - { distro: "alpine", distro_variant: "3.24", latest: "true", distro_latest: "true", arch: "linux/amd64,linux/arm64" }
     uses: nfrastack/gha/.github/workflows/container-build_generic.yml@main
     with:
       base_image: "ghcr.io/nfrastack/container-base"
@@ -57,8 +57,8 @@ jobs:
     secrets: inherit
 ```
 
-**Resulting tags on main push:** `latest`, `alpine`, `alpine_3.23`
-**On tag push (e.g. `8-3.0.4`):** `8-3.0.4`, `8-3.0.4-alpine_3.23`, `latest`, `alpine`
+**Resulting tags on main push:** `latest`, `alpine`, `alpine_3.24`
+**On tag push (e.g. `8-3.0.4`):** `8-3.0.4`, `8-3.0.4-alpine_3.24`, `latest`, `alpine`
 
 ### Multiple OS builds
 
@@ -68,13 +68,13 @@ Add more entries to the matrix. Each entry builds independently.
 strategy:
   matrix:
     include:
-      - { distro: "alpine", distro_variant: "3.23", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+      - { distro: "alpine", distro_variant: "3.24", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
       - { distro: "alpine", distro_variant: "3.22", latest: "false", distro_latest: "false", arch: "linux/amd64,linux/arm64" }
       - { distro: "debian", distro_variant: "trixie", latest: "false", distro_latest: "true", arch: "linux/amd64,linux/arm64" }
 ```
 
 **Tags on main push:**
-- alpine 3.23: `latest`, `alpine`, `alpine_3.23`
+- alpine 3.24: `latest`, `alpine`, `alpine_3.24`
 - alpine 3.22: `alpine_3.22`
 - debian trixie: `debian`, `debian_trixie`
 
@@ -93,8 +93,8 @@ jobs:
       fail-fast: false
       matrix:
         build:
-          - { php_version: "8.4", php_version_latest: "true",  distro: "alpine", distro_variant: "3.23", latest: "false", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
-          - { php_version: "8.3", php_version_latest: "true",  distro: "alpine", distro_variant: "3.23", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+          - { php_version: "8.4", php_version_latest: "true",  distro: "alpine", distro_variant: "3.24", latest: "false", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+          - { php_version: "8.3", php_version_latest: "true",  distro: "alpine", distro_variant: "3.24", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
           - { php_version: "8.2", php_version_latest: "true",  distro: "alpine", distro_variant: "3.22", latest: "false", distro_latest: "false", arch: "linux/amd64,linux/arm64" }
     uses: nfrastack/gha/.github/workflows/container-build_generic.yml@main
     with:
@@ -117,7 +117,7 @@ When a user runs `docker pull nfrastack/phpapplication` (no tag), Docker pulls `
 ### Example: Application with PHP 8.2, 8.3, 8.4
 
 You want:
-- `docker pull nfrastack/application` to get PHP **8.3** on alpine 3.23
+- `docker pull nfrastack/application` to get PHP **8.3** on alpine 3.24
 - Users who want PHP 8.4 can pull `nfrastack/application:php8.4`
 - Users who want PHP 8.2 can pull `nfrastack/application:php8.2`
 
@@ -125,10 +125,10 @@ You want:
 matrix:
   build:
     # PHP 8.4 - newest, available but not the default
-    - { php_version: "8.4", php_version_latest: "true",  latest: "false", distro: "alpine", distro_variant: "3.23", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+    - { php_version: "8.4", php_version_latest: "true",  latest: "false", distro: "alpine", distro_variant: "3.24", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
 
     # PHP 8.3 - the recommended default, gets :latest
-    - { php_version: "8.3", php_version_latest: "true",  latest: "true",  distro: "alpine", distro_variant: "3.23", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+    - { php_version: "8.3", php_version_latest: "true",  latest: "true",  distro: "alpine", distro_variant: "3.24", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
 
     # PHP 8.2 - still supported
     - { php_version: "8.2", php_version_latest: "true",  latest: "false", distro: "alpine", distro_variant: "3.22", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
@@ -138,8 +138,8 @@ matrix:
 
 | Matrix entry                       | Tags                                                   |
 | ---------------------------------- | ------------------------------------------------------ |
-| PHP 8.4, alpine 3.23               | `php8.4-alpine_3.23`, `php8.4`, `alpine`               |
-| PHP 8.3, alpine 3.23 (latest=true) | `php8.3-alpine_3.23`, `php8.3`, **`latest`**, `alpine` |
+| PHP 8.4, alpine 3.24               | `php8.4-alpine_3.24`, `php8.4`, `alpine`               |
+| PHP 8.3, alpine 3.24 (latest=true) | `php8.3-alpine_3.24`, `php8.3`, **`latest`**, `alpine` |
 | PHP 8.2, alpine 3.22               | `php8.2-alpine_3.22`, `php8.2`                         |
 
 So `docker pull nfrastack/application` gets PHP 8.3.
@@ -152,8 +152,8 @@ When you add Debian variants for the same PHP version, use `distro_latest` to co
 matrix:
   build:
     # Alpine builds
-    - { php_version: "8.4", php_version_latest: "true",  distro: "alpine", distro_variant: "3.23", latest: "false", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
-    - { php_version: "8.3", php_version_latest: "true",  distro: "alpine", distro_variant: "3.23", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+    - { php_version: "8.4", php_version_latest: "true",  distro: "alpine", distro_variant: "3.24", latest: "false", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
+    - { php_version: "8.3", php_version_latest: "true",  distro: "alpine", distro_variant: "3.24", latest: "true",  distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
 
     # Debian builds - note php_version_latest is FALSE (Alpine is the default for each PHP version)
     - { php_version: "8.4", php_version_latest: "false", distro: "debian", distro_variant: "trixie", latest: "false", distro_latest: "true",  arch: "linux/amd64,linux/arm64" }
@@ -170,7 +170,7 @@ Key: `php_version_latest: "false"` on Debian entries means `docker pull nfrastac
 | -------------------- | ------- | ------------------------- | --------------------------------------------------------------------------- |
 | `base_image`         | string  | -                         | Upstream base image registry path (e.g. `ghcr.io/nfrastack/container-base`) |
 | `distro`             | string  | -                         | Linux distribution (e.g. `alpine`, `debian`)                                |
-| `distro_variant`     | string  | -                         | Distribution version (e.g. `3.23`, `trixie`)                                |
+| `distro_variant`     | string  | -                         | Distribution version (e.g. `3.24`, `trixie`)                                |
 | `image_variant`      | string  | -                         | Image variant identifier                                                    |
 | `tag`                | string  | -                         | Custom tag prefix                                                           |
 | `latest`             | string  | `"true"`                  | Add `:latest` tag on main/master                                            |
@@ -191,7 +191,7 @@ These three flags control the tag hierarchy. Set each to `"true"` on exactly ONE
 | Flag                 | What it controls | Example tag                  | Rule                                                          |
 | -------------------- | ---------------- | ---------------------------- | ------------------------------------------------------------- |
 | `latest`             | `:latest`        | `nfrastack/bookstack:latest` | ONE entry total (the overall default)                         |
-| `distro_latest`      | `:{distro}`      | `nfrastack/bookstack:alpine` | ONE entry per distro (e.g. alpine 3.23 gets it, 3.22 doesn't) |
+| `distro_latest`      | `:{distro}`      | `nfrastack/bookstack:alpine` | ONE entry per distro (e.g. alpine 3.24 gets it, 3.22 doesn't) |
 | `php_version_latest` | `:{php_version}` | `nfrastack/bookstack:php8.3` | ONE entry per PHP version (typically the Alpine build)        |
 
 ### Pinning base image versions
@@ -200,22 +200,22 @@ By default, images pull the `:latest` equivalent of their upstream base. To pin 
 
 ```yaml
 # Simple image (e.g. redis) — pins container-base to release 2026.3.3
-# Pulls: ghcr.io/nfrastack/container-base:2026.3.3-alpine_3.23
+# Pulls: ghcr.io/nfrastack/container-base:2026.3.3-alpine_3.24
 matrix:
   include:
-    - { distro: "alpine", distro_variant: "3.23", latest: "true", arch: "linux/amd64,linux/arm64", base_image_version: "2026.3.3" }
+    - { distro: "alpine", distro_variant: "3.24", latest: "true", arch: "linux/amd64,linux/arm64", base_image_version: "2026.3.3" }
 
 # PHP image (e.g. bookstack) — pins container-nginx-php-fpm to release 8.0.2
-# Pulls: ghcr.io/nfrastack/container-nginx-php-fpm:8.4-8.0.2-alpine_3.23
+# Pulls: ghcr.io/nfrastack/container-nginx-php-fpm:8.4-8.0.2-alpine_3.24
 matrix:
   build:
-    - { php_version: "8.4", distro: "alpine", distro_variant: "3.23", ..., base_image_version: "8.0.2" }
+    - { php_version: "8.4", distro: "alpine", distro_variant: "3.24", ..., base_image_version: "8.0.2" }
 ```
 
 Tag format with `base_image_version`:
 
-- **Simple images:** `{version}-{distro}_{variant}` (e.g. `2026.3.3-alpine_3.23`)
-- **PHP images:** `{php}-{version}-{distro}_{variant}` (e.g. `8.4-8.0.2-alpine_3.23`)
+- **Simple images:** `{version}-{distro}_{variant}` (e.g. `2026.3.3-alpine_3.24`)
+- **PHP images:** `{php}-{version}-{distro}_{variant}` (e.g. `8.4-8.0.2-alpine_3.24`)
 
 Omit `base_image_version` from a matrix entry to pull the latest upstream (default behavior).
 
@@ -258,7 +258,7 @@ prepare  -->  build-amd64  -->  manifest  -->  summary
 
 ## Error Handling
 
-- **`fail-fast: false`**: All matrix entries run to completion. A failing alpine 3.15 build won't stop alpine 3.23.
+- **`fail-fast: false`**: All matrix entries run to completion. A failing alpine 3.15 build won't stop alpine 3.24.
 - **Build summaries**: Each build writes a markdown summary table to the GitHub Actions UI showing per-architecture pass/fail status.
 - **Error annotations**: Failed builds produce `::error::` annotations visible in the PR/commit checks.
 - **Manifest resilience**: If only one arch succeeds (e.g. arm64 fails), the manifest is still created with the successful arch. The summary reports which arch failed.
@@ -282,7 +282,7 @@ Additional build-args vary by workflow:
 ## Dependency Chain
 
 ```
-docker.io/alpine:3.23
+docker.io/alpine:3.24
   |
   v
 container-base (container-build_base.yml)
@@ -306,7 +306,7 @@ container-base (container-build_base.yml)
 | container-redis         | `MAJOR-X.Y.Z` | `8-3.0.4`  | Upstream Major + image version |
 | All others              | `X.Y.Z`       | `5.9.1`    | Semver                         |
 
-Git tags trigger versioned Docker tags. Push `v8.0.6` in container-nginx and the workflow produces `8.0.6`, `8.0.6-alpine_3.23_faflopza`, etc.
+Git tags trigger versioned Docker tags. Push `v8.0.6` in container-nginx and the workflow produces `8.0.6`, `8.0.6-alpine_3.24_core`, etc. The `core` variant gets the short (non-suffixed) tags as the default.
 
 ## Trigger Workflow Template
 

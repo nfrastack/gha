@@ -10,7 +10,7 @@
 #   BASE_IMAGE, DISTRO, PHP_BASE, DISTRO_VARIANT (combined with IMAGE_VARIANT),
 #   IMAGE_VARIANT
 #
-# Tag generation for faflopza (default) variant on main:
+# Tag generation for core (default) variant on main:
 #   {php}-{distro}_{variant}_{image_variant}  (always)
 #   {php}-{distro}_{variant}                  (always)
 #   {php}-{distro}                            (if distro_latest)
@@ -19,14 +19,14 @@
 #   latest                                    (if latest)
 #
 # Tag generation on tag push (e.g. v8.0.2):
-#   {php}-{tag}-{distro}_{variant}_faflopza   (always for faflopza)
-#   {php}-{tag}-{distro}_{variant}            (always for faflopza)
-#   {php}-{tag}-{distro}                      (if distro_latest, faflopza only)
-#   {php}-{tag}                               (always for faflopza)
+#   {php}-{tag}-{distro}_{variant}_core       (always for core)
+#   {php}-{tag}-{distro}_{variant}            (always for core)
+#   {php}-{tag}-{distro}                      (if distro_latest, core only)
+#   {php}-{tag}                               (always for core)
 #   {php}                                     (if php_version_latest)
 #   latest                                    (if latest)
 #
-#   Non-faflopza variants on tag push:
+#   Non-core variants on tag push:
 #   {php}-{tag}-{distro}_{variant}_{image_variant}  (always)
 #
 # =============================================================================
@@ -165,7 +165,7 @@ jobs:
           if [[ "$branch_name" =~ ^(main|master)$ ]]; then
             build_identity="${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
 
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
               tag_list+=("${build_identity}")
               tag_list+=("${PHP_BASE}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
               if [ "${DISTRO_LATEST,,}" = "true" ]; then
@@ -189,8 +189,8 @@ jobs:
           fi
 
           if [[ -n "$base_tag" ]]; then
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-              tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_faflopza")
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
+              tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_core")
               tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
               if [ "${DISTRO_LATEST,,}" = "true" ]; then
                 tag_list+=("${PHP_BASE}-${base_tag}-${INPUT_DISTRO,,}")

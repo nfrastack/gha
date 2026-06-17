@@ -13,7 +13,7 @@
 #
 #   distro            - Linux distribution name (e.g. "alpine", "debian")
 #   distro_variant    - Distribution version (e.g. "3.23", "trixie")
-#   image_variant     - Image variant identifier (e.g. "core", "faflopza")
+#   image_variant     - Image variant identifier (e.g. "core", "faflopza"); core is the default
 #   tag               - Custom tag prefix (prepended to computed tags)
 #
 #   latest            - When "true", tag as "latest" on main/master pushes

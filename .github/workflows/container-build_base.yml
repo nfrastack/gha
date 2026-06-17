@@ -4,7 +4,7 @@
 #
 # Reusable workflow for building the container-base image.
 # Handles module selection (IMAGE_BASE_MODULES, IMAGE_MODULES) and
-# image variants (core, faflopza, faflopzaze).
+# image variants (core, faflopza, faflopzaze). core is the default variant.
 #
 # No BASE_IMAGE — this IS the base image in the dependency chain.
 #
@@ -134,7 +134,7 @@ jobs:
             if [ "${DISTRO_LATEST,,}" = "true" ]; then
               tag_list+=("${INPUT_DISTRO,,}")
             fi
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
               tag_list+=("${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}")
               tag_list+=("${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
             else
@@ -151,7 +151,7 @@ jobs:
             if [ "${LATEST,,}" == "true" ]; then
               tag_list+=("${base_tag}")
             fi
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
               tag_list+=("$(echo ${GITHUB_REF}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,} | sed 's|refs/tags/||g')")
             else
               tag_list+=("$(echo ${GITHUB_REF}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')")

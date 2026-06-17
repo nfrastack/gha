@@ -39,7 +39,7 @@ runs:
                     # Compose tag in format: <phpversion>-<distro>-<distro_variant>-<image_variant>
                     build_identity="${PHP_BASE}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}"
                     extra_tags=""
-                    if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+                    if [ "${IMAGE_VARIANT}" = "core" ]; then
                       # Only the default image_variant gets the simple tags
                       # Always add :<php_version>-<distro> tag if this is the default variant for the distro
                       if [ "${DISTRO_LATEST,,}" = "true" ]; then
@@ -77,8 +77,8 @@ runs:
           base_tag="$(echo ${GITHUB_REF} | sed 's|refs/tags/||g')"
           git_tag=""
           # Always tag the full build identity
-          if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
-            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}_faflopza"
+          if [ "${IMAGE_VARIANT}" = "core" ]; then
+            variant_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}_${DISTRO_VARIANT,,}_core"
             # Add simple tags for default variant
             simple_tag="${GITHUB_REPOSITORY}:${base_tag}-${DISTRO,,}"
             php_tag="${GITHUB_REPOSITORY}:${base_tag}"

@@ -44,7 +44,7 @@ runs:
                         variant_latest=",${GITHUB_REPOSITORY}:${DISTRO,,}"
                     fi
 
-                    if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+                    if [ "${IMAGE_VARIANT}" = "core" ]; then
                         branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,},${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}${variant_latest}${image_latest}"
                     else
                         branch_tag="${GITHUB_REPOSITORY}:${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}${variant_latest}${image_latest}"
@@ -62,7 +62,7 @@ runs:
             if [ "${LATEST,,}" == "true" ]; then
                 git_tag="${GITHUB_REPOSITORY}:${base_tag}"
             fi
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
                 variant_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,} | sed 's|refs/tags/||g')"
             else
                 variant_tag="${GITHUB_REPOSITORY}:$(echo ${GITHUB_REF}-${DISTRO,,}_${DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')"

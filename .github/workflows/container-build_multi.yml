@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Reusable workflow for building images that depend on container-base and
-# support image variants (core, faflopza, faflopzaze).
+# support image variants (core, faflopza, faflopzaze). core is the default variant.
 # Used by container-nginx.
 #
 # Build-args passed to Docker:
@@ -135,7 +135,7 @@ jobs:
             if [ "${DISTRO_LATEST,,}" = "true" ]; then
               tag_list+=("${INPUT_DISTRO,,}")
             fi
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
               tag_list+=("${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,}")
               tag_list+=("${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}")
             else
@@ -152,7 +152,7 @@ jobs:
             if [ "${LATEST,,}" == "true" ]; then
               tag_list+=("${base_tag}")
             fi
-            if [ "${IMAGE_VARIANT}" = "faflopza" ]; then
+            if [ "${IMAGE_VARIANT}" = "core" ]; then
               tag_list+=("$(echo ${GITHUB_REF}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,} | sed 's|refs/tags/||g')")
             else
               tag_list+=("$(echo ${GITHUB_REF}-${INPUT_DISTRO,,}_${INPUT_DISTRO_VARIANT,,}_${IMAGE_VARIANT,,} | sed 's|refs/tags/||g')")
